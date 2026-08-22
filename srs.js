@@ -2,24 +2,25 @@
 class SRSManager {
     constructor() {
         this.STORAGE_KEY = 'DOKHAK_VOCA_USER_DATA_V1';
-        this.SYNC_ID_KEY = 'DOKHAK_CLOUD_SYNC_ID';
-        this.OBJECT_ID_KEY = 'DOKHAK_CLOUD_OBJECT_ID';
+        this.CLOUD_KEY_STORAGE = 'DOKHAK_CLOUD_SYNC_KEY';
         
-        this.syncId = localStorage.getItem(this.SYNC_ID_KEY) || '';
-        this.cloudObjectId = localStorage.getItem(this.OBJECT_ID_KEY) || '';
+        this.cloudKey = localStorage.getItem(this.CLOUD_KEY_STORAGE) || '';
         this.syncDebounceTimer = null;
         this.isSyncing = false;
         
         this.data = this.loadData();
         
-        // 앱 실행 시 클라우드 자동 풀링
-        if (this.syncId) {
+        // URL에 클라우드 키가 포함되어 있으면 자동 장착
+        this.checkUrlCloudKey();
+
+        // 앱 시작 시 클라우드에서 최신 진도 당겨오기
+        if (this.cloudKey) {
             this.pullFromCloud();
         }
 
-        // 화면 탭 전환/복귀 시 자동 풀링 (스마트폰에서 다시 앱 켤 때)
+        // 화면 탭 전환/스마트폰 복귀 시 자동 풀링
         document.addEventListener('visibilitychange', () => {
-            if (!document.hidden && this.syncId) {
+            if (!document.hidden && this.cloudKey) {
                 this.pullFromCloud();
             }
         });
@@ -202,91 +203,130 @@ class SRSManager {
         return dueList;
     }
 
-    // ================= ☁️ 100% 완전 자동 실시간 클라우드 동기화 =================
-    async setSyncId(id) {
-        this.syncId = id.trim().toLowerCase();
-        localStorage.setItem(this.SYNC_ID_KEY, this.syncId);
-        if (this.syncId) {
-            return await this.pullFromCloud();
+    // ================= ☁️ 초고속 실시간 클라우드 자동 동기화 =================
+    
+    // 새 클라우드 키 발급 또는 기존 키 연결
+    async connectCloudKey(keyInput) {
+        let key = keyInput ? keyInput.trim() : '';
+        this.updateSyncStatusUI('syncing');
+
+        try {
+            if (!key) {
+                // 키가 없으면 새 클라우드 슬롯 즉시 발급
+                const payload = {
+                    name: "dokhak_voca_cloud_slot",
+                    data: this.data
+                };
+                const res = await fetch('https://api.restful-api.dev/objects', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) {
+                    const resData = await res.json();
+                    key = resData.id;
+                }
+            } else {
+                // 기존 키가 있으면 데이터 확인
+                const res = await fetch(`https://api.restful-api.dev/objects/${key}`);
+                if (res.ok) {
+                    const item = await res.json();
+                    if (item && item.data) {
+                        this.mergeCloudData(item.data);
+                    }
+                } else {
+                    // 키가 없으면 새로 생성
+                    const payload = { name: "dokhak_voca_cloud_slot", data: this.data };
+                    const resNew = await fetch('https://api.restful-api.dev/objects', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (resNew.ok) {
+                        const resData = await resNew.json();
+                        key = resData.id;
+                    }
+                }
+            }
+
+            if (key) {
+                this.cloudKey = key;
+                localStorage.setItem(this.CLOUD_KEY_STORAGE, key);
+                this.updateSyncStatusUI('synced');
+                return key;
+            }
+        } catch (e) {
+            console.warn("Cloud connection failed:", e);
+            this.updateSyncStatusUI('error');
         }
-        return false;
+        return null;
     }
 
     triggerAutoCloudSync() {
-        if (!this.syncId) return;
+        if (!this.cloudKey) return;
         clearTimeout(this.syncDebounceTimer);
         this.syncDebounceTimer = setTimeout(() => {
             this.pushToCloud();
-        }, 800);
+        }, 500);
     }
 
-    // 클라우드 자동 저장 (PUT 또는 POST)
     async pushToCloud() {
-        if (!this.syncId || this.isSyncing) return;
+        if (!this.cloudKey || this.isSyncing) return;
         try {
             this.isSyncing = true;
             this.updateSyncStatusUI('saving');
 
             const payload = {
-                name: `dokhak_voca_user_${this.syncId}`,
+                name: "dokhak_voca_cloud_slot",
                 data: this.data
             };
 
-            if (this.cloudObjectId) {
-                // 기존 객체에 PUT
-                const res = await fetch(`https://api.restful-api.dev/objects/${this.cloudObjectId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                if (res.ok) {
-                    this.updateSyncStatusUI('synced');
-                    return;
-                }
-            }
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-            // 없거나 실패 시 새로 생성
-            const resNew = await fetch('https://api.restful-api.dev/objects', {
-                method: 'POST',
+            const res = await fetch(`https://api.restful-api.dev/objects/${this.cloudKey}`, {
+                method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify(payload),
+                signal: controller.signal
             });
-            if (resNew.ok) {
-                const resData = await resNew.json();
-                this.cloudObjectId = resData.id;
-                localStorage.setItem(this.OBJECT_ID_KEY, this.cloudObjectId);
+            clearTimeout(timeoutId);
+
+            if (res.ok) {
                 this.updateSyncStatusUI('synced');
+            } else {
+                this.updateSyncStatusUI('error');
             }
         } catch (e) {
-            console.warn("Cloud push failed:", e);
+            console.warn("Cloud push error:", e);
             this.updateSyncStatusUI('error');
         } finally {
             this.isSyncing = false;
         }
     }
 
-    // 클라우드 자동 불러오기 & 화면 갱신
     async pullFromCloud() {
-        if (!this.syncId) return false;
+        if (!this.cloudKey) return false;
         try {
             this.updateSyncStatusUI('syncing');
 
-            // 1. 객체 ID가 있으면 직접 조회
-            if (this.cloudObjectId) {
-                const res = await fetch(`https://api.restful-api.dev/objects/${this.cloudObjectId}`);
-                if (res.ok) {
-                    const item = await res.json();
-                    if (item && item.data) {
-                        return this.mergeCloudData(item.data);
-                    }
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+            const res = await fetch(`https://api.restful-api.dev/objects/${this.cloudKey}`, {
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+
+            if (res.ok) {
+                const item = await res.json();
+                if (item && item.data) {
+                    return this.mergeCloudData(item.data);
                 }
             }
-
-            // 2. 없으면 객체 새로 생성/푸시
-            await this.pushToCloud();
-            return true;
+            this.updateSyncStatusUI('synced');
         } catch (e) {
-            console.warn("Cloud pull failed:", e);
+            console.warn("Cloud pull error:", e);
             this.updateSyncStatusUI('error');
         }
         return false;
@@ -295,7 +335,6 @@ class SRSManager {
     mergeCloudData(cloudData) {
         if (!cloudData || typeof cloudData !== 'object') return false;
 
-        // 클라우드 진도가 더 최신이거나 더 높은 점수일 때 병합
         if (!this.data.updatedAt || (cloudData.updatedAt && cloudData.updatedAt >= this.data.updatedAt) || cloudData.xp > this.data.xp) {
             this.data = Object.assign(this.getDefaultData(), cloudData);
             localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.data));
@@ -322,30 +361,29 @@ class SRSManager {
             badge.innerHTML = '🔄 실시간 동기화 중...';
             badge.style.color = 'var(--duo-blue)';
         } else if (status === 'error') {
-            badge.innerHTML = '⚠️ 오프라인 모드 (로컬 자동 보관)';
+            badge.innerHTML = '⚠️ 오프라인 보관 중 (다시 켜면 자동 연동)';
             badge.style.color = 'var(--duo-yellow)';
         }
     }
 
-    // 원클릭 진도 동기화 URL 링크 생성
-    exportSyncLink() {
-        const code = this.exportBackupCode();
-        const base = window.location.origin + window.location.pathname;
-        return `${base}#sync=${code}`;
-    }
-
-    checkUrlSyncImport() {
-        if (window.location.hash && window.location.hash.includes('#sync=')) {
-            const code = window.location.hash.split('#sync=')[1];
-            if (code) {
-                if (this.importBackupCode(code)) {
-                    history.replaceState(null, null, window.location.pathname);
-                    alert('🎉 진도 동기화 완료!\n최신 학습 기록이 성공적으로 반영되었습니다.');
-                    return true;
-                }
+    // URL 파라미터에서 클라우드 키 자동 로드 (예: #cloud=xxxx)
+    checkUrlCloudKey() {
+        if (window.location.hash && window.location.hash.includes('#cloud=')) {
+            const key = window.location.hash.split('#cloud=')[1].split('&')[0];
+            if (key) {
+                this.cloudKey = key;
+                localStorage.setItem(this.CLOUD_KEY_STORAGE, key);
+                history.replaceState(null, null, window.location.pathname);
+                alert('🎉 클라우드 자동 동기화가 연결되었습니다!\n이제부터 PC와 폰의 진도가 100% 자동 동기화됩니다.');
             }
         }
-        return false;
+    }
+
+    // 스마트폰 원클릭 자동 연동 링크 생성
+    getAutoSyncShareUrl() {
+        const base = window.location.origin + window.location.pathname;
+        if (!this.cloudKey) return base;
+        return `${base}#cloud=${this.cloudKey}`;
     }
 
     exportBackupCode() {

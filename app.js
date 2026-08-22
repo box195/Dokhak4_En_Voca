@@ -59,37 +59,48 @@ class VocaApp {
             });
         }
 
-        // 클라우드 자동 동기화 ID 입력 및 연결 버튼
+        // 클라우드 자동 동기화 연결 및 링크 공유
         const syncInput = document.getElementById('input-sync-id');
         const syncBtn = document.getElementById('btn-save-sync-id');
-        if (syncInput && syncBtn) {
-            syncInput.value = window.srsManager.syncId;
-            if (window.srsManager.syncId) {
+        const shareLinkBtn = document.getElementById('btn-share-cloud-link');
+
+        if (syncInput) {
+            syncInput.value = window.srsManager.cloudKey;
+            if (window.srsManager.cloudKey) {
                 window.srsManager.updateSyncStatusUI('synced');
             }
+        }
 
+        if (syncBtn) {
             syncBtn.addEventListener('click', async () => {
-                const idVal = syncInput.value.trim();
-                if (!idVal) {
-                    alert('동기화에 사용할 고유 닉네임/ID를 입력해주세요.');
-                    return;
-                }
+                const keyInput = syncInput ? syncInput.value.trim() : '';
                 syncBtn.disabled = true;
                 syncBtn.textContent = '연결 중...';
-                await window.srsManager.setSyncId(idVal);
+
+                const connectedKey = await window.srsManager.connectCloudKey(keyInput);
                 syncBtn.disabled = false;
                 syncBtn.textContent = '동기화 연결';
-                alert(`🎉 [${idVal}] 클라우드 동기화가 활성화되었습니다!\n다른 기기(스마트폰)에서도 동일하게 [${idVal}]을 입력하시면 진도가 실시간 자동 연동됩니다.`);
+
+                if (connectedKey) {
+                    if (syncInput) syncInput.value = connectedKey;
+                    alert(`🎉 클라우드 자동 동기화가 연결되었습니다!\n\n아래 [스마트폰 원클릭 링크 복사] 버튼을 눌러 카카오톡으로 보내시면, 스마트폰에서도 100% 자동 동기화가 활성화됩니다.`);
+                } else {
+                    alert('⚠️ 동기화 연결에 실패했습니다. 인터넷 연결을 확인해 주세요.');
+                }
             });
         }
 
-        // 원클릭 진도 동기화 링크 복사 버튼
-        const syncLinkBtn = document.getElementById('btn-export-sync-link');
-        if (syncLinkBtn) {
-            syncLinkBtn.addEventListener('click', () => {
-                const url = window.srsManager.exportSyncLink();
-                navigator.clipboard.writeText(url).then(() => {
-                    alert('🎉 내 진도가 담긴 [원클릭 동기화 링크]가 복사되었습니다!\n\n카카오톡으로 나에게 보낸 뒤, 스마트폰에서 링크를 누르기만 하면 진도가 즉시 100% 동기화됩니다.');
+        if (shareLinkBtn) {
+            shareLinkBtn.addEventListener('click', async () => {
+                let key = window.srsManager.cloudKey;
+                if (!key) {
+                    // 키가 없으면 즉시 자동 발급
+                    key = await window.srsManager.connectCloudKey('');
+                    if (syncInput && key) syncInput.value = key;
+                }
+                const shareUrl = window.srsManager.getAutoSyncShareUrl();
+                navigator.clipboard.writeText(shareUrl).then(() => {
+                    alert('🎉 [스마트폰 원클릭 자동 연동 링크]가 복사되었습니다!\n\n카카오톡으로 나에게 보낸 뒤, 스마트폰에서 링크를 누르면 폰에서도 평생 100% 실시간 자동 동기화가 유지됩니다.');
                 });
             });
         }
