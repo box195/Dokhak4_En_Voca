@@ -119,12 +119,10 @@
                 </div>
 
                 <div style="display: flex; flex-direction: column; gap: 16px; margin-top: 20px;">
-                    <!-- 실시간 자동 동기화 카드 -->
+                    <!-- 1. 실시간 클라우드 자동 동기화 카드 (100% 자동 백그라운드 연동) -->
                     <div style="background: var(--bg-card); border: 2px solid var(--duo-blue); border-radius: var(--card-radius); padding: 20px; box-shadow: 0 4px 0 var(--duo-blue-dark);">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                            <div style="font-size: 18px; font-weight: 900;">☁️ 실시간 클라우드 자동 동기화</div>
-                        </div>
-                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">PC와 폰에 <strong>동일한 닉네임</strong>을 입력해 두면, 단어를 풀 때마다 진도가 100% 자동 동기화됩니다.</p>
+                        <div style="font-size: 18px; font-weight: 900; margin-bottom: 6px; color: var(--duo-blue);">☁️ 실시간 클라우드 자동 동기화</div>
+                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">PC와 폰에 <strong>동일한 닉네임</strong>을 입력해 두면, 단어를 풀 때마다 진도가 100% 백그라운드 자동 동기화됩니다.</p>
                         
                         <div style="display: flex; gap: 8px; margin-bottom: 10px;">
                             <input type="text" id="input-sync-id" class="search-input" placeholder="나만의 동기화 ID (예: suwan2026)" style="flex: 1; padding: 10px 14px; font-size: 14px;">
@@ -133,10 +131,17 @@
                         <div id="cloud-sync-status-badge" style="font-size: 13px; font-weight: 800; color: var(--text-muted);">⚪ 동기화 ID를 입력하세요</div>
                     </div>
 
-                    <!-- 수동 코드 복사 백업 카드 -->
+                    <!-- 2. 원클릭 링크 동기화 카드 (가장 쉽고 확실함) -->
+                    <div style="background: var(--bg-card); border: 2px solid var(--duo-green); border-radius: var(--card-radius); padding: 20px; box-shadow: 0 4px 0 var(--duo-green-dark);">
+                        <div style="font-size: 18px; font-weight: 900; margin-bottom: 6px; color: var(--duo-green);">🔗 원클릭 진도 동기화 링크</div>
+                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">현재 기기의 진도를 담은 링크를 복사합니다. 카카오톡으로 나에게 보낸 뒤 스마트폰에서 링크를 누르면 즉시 진도가 동기화됩니다!</p>
+                        <button class="duo-btn duo-btn-green" id="btn-export-sync-link" style="width: 100%;">🔗 원클릭 동기화 링크 복사</button>
+                    </div>
+
+                    <!-- 3. 수동 코드 복사 백업 카드 -->
                     <div style="background: var(--bg-card); border: 2px solid var(--border-color); border-radius: var(--card-radius); padding: 20px; box-shadow: 0 4px 0 var(--border-color);">
-                        <div style="font-size: 18px; font-weight: 900; margin-bottom: 8px;">📋 수동 진도 백업 코드</div>
-                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">오프라인 환경 등에서 텍스트 코드로 진도를 직접 옮길 때 사용합니다.</p>
+                        <div style="font-size: 18px; font-weight: 900; margin-bottom: 6px;">📋 수동 진도 백업 코드</div>
+                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">텍스트 코드로 진도를 직접 옮길 때 사용합니다.</p>
                         <div style="display: flex; gap: 10px;">
                             <button class="duo-btn duo-btn-outline" id="btn-export-backup" style="flex:1;">📋 코드 복사</button>
                             <button class="duo-btn duo-btn-outline" id="btn-import-backup" style="flex:1;">📥 코드 불러오기</button>

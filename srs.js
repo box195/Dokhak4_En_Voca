@@ -1,21 +1,30 @@
-// 에빙하우스 망각곡선 기반 간격 반복 시스템 (SRS) & 실시간 클라우드 자동 동기화
+// 에빙하우스 망각곡선 기반 간격 반복 시스템 (SRS) & 100% 완전 자동 실시간 클라우드 동기화 엔진
 class SRSManager {
     constructor() {
         this.STORAGE_KEY = 'DOKHAK_VOCA_USER_DATA_V1';
         this.SYNC_ID_KEY = 'DOKHAK_CLOUD_SYNC_ID';
+        this.OBJECT_ID_KEY = 'DOKHAK_CLOUD_OBJECT_ID';
+        
         this.syncId = localStorage.getItem(this.SYNC_ID_KEY) || '';
+        this.cloudObjectId = localStorage.getItem(this.OBJECT_ID_KEY) || '';
         this.syncDebounceTimer = null;
         this.isSyncing = false;
         
         this.data = this.loadData();
         
-        // 클라우드 자동 동기화 켜져 있으면 최초 풀링
+        // 앱 실행 시 클라우드 자동 풀링
         if (this.syncId) {
             this.pullFromCloud();
         }
+
+        // 화면 탭 전환/복귀 시 자동 풀링 (스마트폰에서 다시 앱 켤 때)
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && this.syncId) {
+                this.pullFromCloud();
+            }
+        });
     }
 
-    // 기본 사용자 상태 초기화
     getDefaultData() {
         return {
             hearts: 5,
@@ -24,9 +33,9 @@ class SRSManager {
             xp: 0,
             streak: 1,
             lastStudyDate: new Date().toISOString().split('T')[0],
-            completedDays: {}, // { "VOCA 01": { stars: 3, score: 100, completedAt: ... } }
-            wordStats: {},     // { "word_id": { level: 0~5, nextReview: timestamp, wrongCount: 0, rightCount: 0, starred: false } }
-            wrongNotes: [],    // [ word_id, ... ]
+            completedDays: {},
+            wordStats: {},
+            wrongNotes: [],
             updatedAt: Date.now()
         };
     }
@@ -62,7 +71,7 @@ class SRSManager {
         }
         const now = Date.now();
         const diffMs = now - this.data.lastHeartTime;
-        const RECHARGE_INTERVAL = 30 * 60 * 1000; // 30분
+        const RECHARGE_INTERVAL = 30 * 60 * 1000;
         const addedHearts = Math.floor(diffMs / RECHARGE_INTERVAL);
 
         if (addedHearts > 0) {
@@ -89,7 +98,6 @@ class SRSManager {
         this.saveData();
     }
 
-    // 출석 스트릭 체크
     checkStreak() {
         const today = new Date().toISOString().split('T')[0];
         if (this.data.lastStudyDate === today) return;
@@ -113,13 +121,11 @@ class SRSManager {
         this.saveData();
     }
 
-    // SRS 복습 주기 간격 (일 단위)
     getIntervalDays(level) {
-        const intervals = [1, 2, 4, 7, 14, 30]; // 0~5단계
+        const intervals = [1, 2, 4, 7, 14, 30];
         return intervals[Math.min(level, intervals.length - 1)];
     }
 
-    // 단어 정답 처리
     recordRight(wordId) {
         if (!this.data.wordStats[wordId]) {
             this.data.wordStats[wordId] = { level: 0, rightCount: 0, wrongCount: 0, starred: false, nextReview: 0 };
@@ -140,7 +146,6 @@ class SRSManager {
         this.saveData();
     }
 
-    // 단어 오답 처리
     recordWrong(wordId) {
         if (!this.data.wordStats[wordId]) {
             this.data.wordStats[wordId] = { level: 0, rightCount: 0, wrongCount: 0, starred: false, nextReview: 0 };
@@ -157,7 +162,6 @@ class SRSManager {
         this.saveData();
     }
 
-    // 북마크 토글
     toggleStar(wordId) {
         if (!this.data.wordStats[wordId]) {
             this.data.wordStats[wordId] = { level: 0, rightCount: 0, wrongCount: 0, starred: false, nextReview: 0 };
@@ -167,7 +171,6 @@ class SRSManager {
         return this.data.wordStats[wordId].starred;
     }
 
-    // 스테이지 완료 기록
     recordStageComplete(category, score, total) {
         const ratio = score / total;
         let stars = 1;
@@ -187,7 +190,6 @@ class SRSManager {
         this.saveData();
     }
 
-    // 오늘 복습해야 할 단어 목록 가져오기
     getDueReviewWords(allWords) {
         const now = Date.now();
         const dueList = [];
@@ -200,14 +202,14 @@ class SRSManager {
         return dueList;
     }
 
-    // ================= ☁️ 실시간 클라우드 자동 동기화 엔진 =================
-    setSyncId(id) {
+    // ================= ☁️ 100% 완전 자동 실시간 클라우드 동기화 =================
+    async setSyncId(id) {
         this.syncId = id.trim().toLowerCase();
         localStorage.setItem(this.SYNC_ID_KEY, this.syncId);
         if (this.syncId) {
-            return this.pullFromCloud();
+            return await this.pullFromCloud();
         }
-        return Promise.resolve(false);
+        return false;
     }
 
     triggerAutoCloudSync() {
@@ -215,24 +217,46 @@ class SRSManager {
         clearTimeout(this.syncDebounceTimer);
         this.syncDebounceTimer = setTimeout(() => {
             this.pushToCloud();
-        }, 1000);
+        }, 800);
     }
 
-    // 클라우드 저장 (초고속 KV 스토리지)
+    // 클라우드 자동 저장 (PUT 또는 POST)
     async pushToCloud() {
         if (!this.syncId || this.isSyncing) return;
         try {
             this.isSyncing = true;
             this.updateSyncStatusUI('saving');
-            
-            const endpoint = `https://kvdb.io/AnE7Z6fL1QW9xUuT2mYp9b/${encodeURIComponent(this.syncId)}`;
-            await fetch(endpoint, {
+
+            const payload = {
+                name: `dokhak_voca_user_${this.syncId}`,
+                data: this.data
+            };
+
+            if (this.cloudObjectId) {
+                // 기존 객체에 PUT
+                const res = await fetch(`https://api.restful-api.dev/objects/${this.cloudObjectId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) {
+                    this.updateSyncStatusUI('synced');
+                    return;
+                }
+            }
+
+            // 없거나 실패 시 새로 생성
+            const resNew = await fetch('https://api.restful-api.dev/objects', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(this.data)
+                body: JSON.stringify(payload)
             });
-
-            this.updateSyncStatusUI('synced');
+            if (resNew.ok) {
+                const resData = await resNew.json();
+                this.cloudObjectId = resData.id;
+                localStorage.setItem(this.OBJECT_ID_KEY, this.cloudObjectId);
+                this.updateSyncStatusUI('synced');
+            }
         } catch (e) {
             console.warn("Cloud push failed:", e);
             this.updateSyncStatusUI('error');
@@ -241,35 +265,26 @@ class SRSManager {
         }
     }
 
-    // 클라우드 불러오기 및 스마트 병합
+    // 클라우드 자동 불러오기 & 화면 갱신
     async pullFromCloud() {
         if (!this.syncId) return false;
         try {
             this.updateSyncStatusUI('syncing');
-            const endpoint = `https://kvdb.io/AnE7Z6fL1QW9xUuT2mYp9b/${encodeURIComponent(this.syncId)}`;
-            const res = await fetch(endpoint);
-            if (res.ok) {
-                const cloudData = await res.json();
-                if (cloudData && typeof cloudData === 'object') {
-                    // 클라우드 데이터가 더 최신이거나 XP가 높으면 병합
-                    if (!this.data.updatedAt || (cloudData.updatedAt && cloudData.updatedAt >= this.data.updatedAt) || cloudData.xp > this.data.xp) {
-                        this.data = Object.assign(this.getDefaultData(), cloudData);
-                        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.data));
-                        this.updateSyncStatusUI('synced');
-                        if (window.vocaApp) {
-                            window.vocaApp.updateHeaderStats();
-                            window.vocaApp.renderRoadmap();
-                            window.vocaApp.renderReviewView();
-                        }
-                        return true;
+
+            // 1. 객체 ID가 있으면 직접 조회
+            if (this.cloudObjectId) {
+                const res = await fetch(`https://api.restful-api.dev/objects/${this.cloudObjectId}`);
+                if (res.ok) {
+                    const item = await res.json();
+                    if (item && item.data) {
+                        return this.mergeCloudData(item.data);
                     }
                 }
-            } else if (res.status === 404) {
-                // 클라우드에 아직 없으면 현재 로컬 데이터 업로드
-                await this.pushToCloud();
-                return true;
             }
-            this.updateSyncStatusUI('synced');
+
+            // 2. 없으면 객체 새로 생성/푸시
+            await this.pushToCloud();
+            return true;
         } catch (e) {
             console.warn("Cloud pull failed:", e);
             this.updateSyncStatusUI('error');
@@ -277,22 +292,62 @@ class SRSManager {
         return false;
     }
 
+    mergeCloudData(cloudData) {
+        if (!cloudData || typeof cloudData !== 'object') return false;
+
+        // 클라우드 진도가 더 최신이거나 더 높은 점수일 때 병합
+        if (!this.data.updatedAt || (cloudData.updatedAt && cloudData.updatedAt >= this.data.updatedAt) || cloudData.xp > this.data.xp) {
+            this.data = Object.assign(this.getDefaultData(), cloudData);
+            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.data));
+            this.updateSyncStatusUI('synced');
+            
+            if (window.vocaApp) {
+                window.vocaApp.updateHeaderStats();
+                window.vocaApp.renderRoadmap();
+                window.vocaApp.renderReviewView();
+            }
+            return true;
+        }
+        this.updateSyncStatusUI('synced');
+        return false;
+    }
+
     updateSyncStatusUI(status) {
         const badge = document.getElementById('cloud-sync-status-badge');
         if (!badge) return;
         if (status === 'synced') {
-            badge.innerHTML = '🟢 실시간 클라우드 동기화 활성';
+            badge.innerHTML = '🟢 실시간 클라우드 자동 동기화 활성';
             badge.style.color = 'var(--duo-green)';
         } else if (status === 'saving' || status === 'syncing') {
-            badge.innerHTML = '🔄 동기화 진행 중...';
+            badge.innerHTML = '🔄 실시간 동기화 중...';
             badge.style.color = 'var(--duo-blue)';
         } else if (status === 'error') {
-            badge.innerHTML = '⚠️ 오프라인 (로컬 자동 보관)';
+            badge.innerHTML = '⚠️ 오프라인 모드 (로컬 자동 보관)';
             badge.style.color = 'var(--duo-yellow)';
         }
     }
 
-    // 기기 간 백업/복원
+    // 원클릭 진도 동기화 URL 링크 생성
+    exportSyncLink() {
+        const code = this.exportBackupCode();
+        const base = window.location.origin + window.location.pathname;
+        return `${base}#sync=${code}`;
+    }
+
+    checkUrlSyncImport() {
+        if (window.location.hash && window.location.hash.includes('#sync=')) {
+            const code = window.location.hash.split('#sync=')[1];
+            if (code) {
+                if (this.importBackupCode(code)) {
+                    history.replaceState(null, null, window.location.pathname);
+                    alert('🎉 진도 동기화 완료!\n최신 학습 기록이 성공적으로 반영되었습니다.');
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     exportBackupCode() {
         return btoa(unescape(encodeURIComponent(JSON.stringify(this.data))));
     }

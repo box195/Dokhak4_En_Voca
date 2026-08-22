@@ -9,6 +9,7 @@ class VocaApp {
     }
 
     init() {
+        window.srsManager.checkUrlSyncImport();
         this.updateHeaderStats();
         this.setupEventListeners();
         this.renderRoadmap();
@@ -79,6 +80,17 @@ class VocaApp {
                 syncBtn.disabled = false;
                 syncBtn.textContent = '동기화 연결';
                 alert(`🎉 [${idVal}] 클라우드 동기화가 활성화되었습니다!\n다른 기기(스마트폰)에서도 동일하게 [${idVal}]을 입력하시면 진도가 실시간 자동 연동됩니다.`);
+            });
+        }
+
+        // 원클릭 진도 동기화 링크 복사 버튼
+        const syncLinkBtn = document.getElementById('btn-export-sync-link');
+        if (syncLinkBtn) {
+            syncLinkBtn.addEventListener('click', () => {
+                const url = window.srsManager.exportSyncLink();
+                navigator.clipboard.writeText(url).then(() => {
+                    alert('🎉 내 진도가 담긴 [원클릭 동기화 링크]가 복사되었습니다!\n\n카카오톡으로 나에게 보낸 뒤, 스마트폰에서 링크를 누르기만 하면 진도가 즉시 100% 동기화됩니다.');
+                });
             });
         }
 
