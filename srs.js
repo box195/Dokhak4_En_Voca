@@ -379,6 +379,11 @@ class SRSManager {
         }
     }
 
+    // URL 파라미터에서 동기화 코드 로드 (하위 호환)
+    checkUrlSyncImport() {
+        this.checkUrlCloudKey();
+    }
+
     // 스마트폰 원클릭 자동 연동 링크 생성
     getAutoSyncShareUrl() {
         const base = window.location.origin + window.location.pathname;

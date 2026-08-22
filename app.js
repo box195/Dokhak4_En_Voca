@@ -9,13 +9,18 @@ class VocaApp {
     }
 
     init() {
-        window.srsManager.checkUrlSyncImport();
-        this.updateHeaderStats();
-        this.setupEventListeners();
-        this.renderRoadmap();
-        this.renderVocaList();
-        this.renderReviewView();
-        this.checkTheme();
+        try {
+            if (window.srsManager && typeof window.srsManager.checkUrlSyncImport === 'function') {
+                window.srsManager.checkUrlSyncImport();
+            }
+        } catch (e) { console.warn("Sync check skipped:", e); }
+
+        try { this.updateHeaderStats(); } catch(e) { console.error(e); }
+        try { this.setupEventListeners(); } catch(e) { console.error(e); }
+        try { this.renderRoadmap(); } catch(e) { console.error(e); }
+        try { this.renderVocaList(); } catch(e) { console.error(e); }
+        try { this.renderReviewView(); } catch(e) { console.error(e); }
+        try { this.checkTheme(); } catch(e) { console.error(e); }
     }
 
     // 상단 헤더 (스트릭, 보석, 하트) UI 업데이트
