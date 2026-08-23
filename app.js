@@ -1,4 +1,4 @@
-// 독학사 4단계 영어 듀오링고 웹앱 - 2026 최신 듀오링고 4대 퀴즈 & 적응형 마스터 엔진
+// 독학사 4단계 영어 듀오링고 웹앱 - 100% 마스터 진행률 & 완벽 오답노트 & 스테이지 완료 노란별 시스템
 class VocaApp {
     constructor() {
         this.database = window.VOCA_DATABASE || { words: [] };
@@ -24,17 +24,31 @@ class VocaApp {
         try { this.checkTheme(); } catch(e) { console.error(e); }
     }
 
+    // 상단 헤더 UI 업데이트 (스트릭, 경험치, 📊 전체 단어 마스터 진행률)
     updateHeaderStats() {
         const srs = window.srsManager;
-        srs.updateHearts();
 
         const streakEl = document.getElementById('header-streak-count');
         const gemEl = document.getElementById('header-gem-count');
-        const heartEl = document.getElementById('header-heart-count');
+        const progressPercentEl = document.getElementById('header-mastery-percent');
+        const progressCountEl = document.getElementById('header-mastery-count');
 
         if (streakEl) streakEl.textContent = srs.data.streak;
         if (gemEl) gemEl.textContent = srs.data.xp;
-        if (heartEl) heartEl.textContent = srs.data.hearts;
+
+        // 전체 단어(2,238개) 중 마스터한 단어(레벨 1 이상) 진행률 계산
+        const totalWords = this.database.words.length || 2238;
+        let masteredWordsCount = 0;
+        for (const w of this.database.words) {
+            const stat = srs.data.wordStats[w.id];
+            if (stat && stat.level >= 1) {
+                masteredWordsCount++;
+            }
+        }
+
+        const percent = ((masteredWordsCount / totalWords) * 100).toFixed(1);
+        if (progressPercentEl) progressPercentEl.textContent = `${percent}%`;
+        if (progressCountEl) progressCountEl.textContent = `(${masteredWordsCount}/${totalWords})`;
     }
 
     setupEventListeners() {
@@ -130,15 +144,6 @@ class VocaApp {
             });
         }
 
-        const refillBtn = document.getElementById('btn-refill-hearts');
-        if (refillBtn) {
-            refillBtn.addEventListener('click', () => {
-                window.srsManager.refillHearts();
-                this.updateHeaderStats();
-                alert('💖 하트 5개 완충 완료!');
-            });
-        }
-
         const themeBtn = document.getElementById('btn-theme-toggle');
         if (themeBtn) {
             themeBtn.addEventListener('click', () => {
@@ -173,7 +178,7 @@ class VocaApp {
         if (viewId === 'view-review') this.renderReviewView();
     }
 
-    // 1. 로드맵 렌더링
+    // 1. 로드맵 렌더링 (완료 시 노란색 & 황금별 3개 👑⭐⭐⭐)
     renderRoadmap() {
         const container = document.getElementById('path-nodes-container');
         if (!container) return;
@@ -203,11 +208,11 @@ class VocaApp {
 
             nodeWrapper.innerHTML = `
                 <div class="stage-node ${isCompleted ? 'completed' : ''}" data-category="${catName}">
-                    <div style="font-size: 20px;">${isCompleted ? '👑' : '📖'}</div>
+                    <div style="font-size: 22px;">${isCompleted ? '👑' : '📖'}</div>
                     <div style="font-size: 13px; font-weight:900;">${day}</div>
                     ${stars ? `<div class="stage-stars">${stars}</div>` : ''}
                 </div>
-                <div class="stage-label">${catName} (${wordCount}개)</div>
+                <div class="stage-label" style="${isCompleted ? 'color: var(--duo-yellow-dark); font-weight:900;' : ''}">${catName} (${wordCount}개)</div>
             `;
 
             nodeWrapper.querySelector('.stage-node').addEventListener('click', () => {
@@ -218,13 +223,7 @@ class VocaApp {
         }
     }
 
-    // 챕터 선택 모달
     showStageModal(category, words) {
-        if (window.srsManager.data.hearts <= 0) {
-            alert('💔 하트가 부족합니다! 설정 탭에서 충전하거나 30분을 기다려주세요.');
-            return;
-        }
-
         const modal = document.createElement('div');
         modal.className = 'quiz-overlay active';
         modal.id = 'stage-select-modal';
@@ -258,12 +257,12 @@ class VocaApp {
         
         document.getElementById('btn-start-full-quiz').onclick = () => {
             modal.remove();
-            this.buildAndStartAdaptiveSession(words, `${category} 전체 마스터`);
+            this.buildAndStartAdaptiveSession(words, `${category} 마스터`, category);
         };
 
         document.getElementById('btn-start-match-quiz').onclick = () => {
             modal.remove();
-            this.buildAndStartMatchSession(words, `${category} 매치 매드니스`);
+            this.buildAndStartMatchSession(words, `${category} 매치`, category);
         };
 
         document.getElementById('btn-preview-words').onclick = () => {
@@ -272,7 +271,6 @@ class VocaApp {
         };
     }
 
-    // 단어 미리보기 모달
     showWordsPreviewModal(category, words) {
         const modal = document.createElement('div');
         modal.className = 'quiz-overlay active';
@@ -317,16 +315,15 @@ class VocaApp {
         document.getElementById('btn-close-preview-modal').onclick = () => modal.remove();
         document.getElementById('btn-start-from-preview').onclick = () => {
             modal.remove();
-            this.buildAndStartAdaptiveSession(words, `${category} 전체 마스터`);
+            this.buildAndStartAdaptiveSession(words, `${category} 마스터`, category);
         };
     }
 
-    // ================= 🎯 적응형 2-Step 황금 밸런스 퀴즈 큐 생성기 =================
-    buildAndStartAdaptiveSession(wordList, sessionTitle) {
+    // 적응형 퀴즈 큐 생성기
+    buildAndStartAdaptiveSession(wordList, sessionTitle, rawCategory = null) {
         const shuffled = [...wordList].sort(() => 0.5 - Math.random());
         const quizQueue = [];
 
-        // 1단계: 영 ➔ 한 4지선다 & OX 스피드 (첫인상 각인)
         shuffled.forEach((w, idx) => {
             if (idx % 3 === 0) {
                 quizQueue.push({ type: 'ox', word: w });
@@ -335,13 +332,11 @@ class VocaApp {
             }
         });
 
-        // 2단계: 한 ➔ 영 4지선다 (정확한 인출 훈련)
         const shuffled2 = [...wordList].sort(() => 0.5 - Math.random());
         shuffled2.forEach(w => {
             quizQueue.push({ type: 'ko_to_en', word: w });
         });
 
-        // 10문제마다 5쌍 매치 매드니스 미니게임 삽입!
         const finalQueue = [];
         let matchBatch = [];
         quizQueue.forEach((q, idx) => {
@@ -354,11 +349,10 @@ class VocaApp {
             }
         });
 
-        this.startQuizSession(finalQueue, sessionTitle, wordList.length);
+        this.startQuizSession(finalQueue, sessionTitle, wordList.length, rawCategory);
     }
 
-    // 매치 매드니스 전용 세션
-    buildAndStartMatchSession(wordList, sessionTitle) {
+    buildAndStartMatchSession(wordList, sessionTitle, rawCategory = null) {
         const shuffled = [...wordList].sort(() => 0.5 - Math.random());
         const finalQueue = [];
         
@@ -369,15 +363,16 @@ class VocaApp {
             }
         }
 
-        this.startQuizSession(finalQueue, sessionTitle, wordList.length);
+        this.startQuizSession(finalQueue, sessionTitle, wordList.length, rawCategory);
     }
 
-    startQuizSession(queue, title, targetWordCount) {
+    startQuizSession(queue, title, targetWordCount, rawCategory = null) {
         const overlay = document.getElementById('quiz-modal');
         overlay.classList.add('active');
 
         this.quizSession = {
             title: title,
+            rawCategory: rawCategory,
             items: queue,
             currentIndex: 0,
             score: 0,
@@ -387,7 +382,6 @@ class VocaApp {
             completedCount: 0
         };
 
-        document.getElementById('quiz-heart-val').textContent = window.srsManager.data.hearts;
         this.renderNextQuestion();
     }
 
@@ -398,6 +392,7 @@ class VocaApp {
         this.hideFeedbackBanner();
         this.updateHeaderStats();
         this.renderRoadmap();
+        this.renderReviewView();
     }
 
     renderNextQuestion() {
@@ -415,7 +410,6 @@ class VocaApp {
         const quizBody = document.getElementById('quiz-body-container');
         quizBody.innerHTML = '';
 
-        // 상단 콤보 & 진행도 헤더
         const headerInfo = document.createElement('div');
         headerInfo.style.cssText = 'display:flex; justify-content:space-between; align-items:center; width:100%; margin-bottom:8px; font-size:12px; font-weight:800; color:var(--text-muted);';
         headerInfo.innerHTML = `
@@ -424,7 +418,6 @@ class VocaApp {
         `;
         quizBody.appendChild(headerInfo);
 
-        // 4대 실전 퀴즈 유형 분기
         if (currentItem.type === 'en_to_ko') {
             this.renderEnToKoQuiz(quizBody, currentItem.word);
         } else if (currentItem.type === 'ko_to_en') {
@@ -436,7 +429,6 @@ class VocaApp {
         }
     }
 
-    // ================= 1. 영 ➔ 한 4지선다 =================
     renderEnToKoQuiz(container, targetWord) {
         const allOtherWords = this.database.words.filter(w => w.id !== targetWord.id);
         const wrongDistractors = allOtherWords.sort(() => 0.5 - Math.random()).slice(0, 3);
@@ -481,7 +473,6 @@ class VocaApp {
         });
     }
 
-    // ================= 2. 한 ➔ 영 4지선다 =================
     renderKoToEnQuiz(container, targetWord) {
         const allOtherWords = this.database.words.filter(w => w.id !== targetWord.id);
         const wrongDistractors = allOtherWords.sort(() => 0.5 - Math.random()).slice(0, 3);
@@ -523,9 +514,7 @@ class VocaApp {
         });
     }
 
-    // ================= 3. ⭕❌ 1초 스피드 판별 =================
     renderOXSpeedQuiz(container, targetWord) {
-        // 50% 확률로 맞는 뜻 / 50% 확률로 다른 단어의 뜻 제시
         const isTrueQuestion = Math.random() < 0.5;
         let displayedMeaning = targetWord.meaning;
         if (!isTrueQuestion) {
@@ -563,7 +552,6 @@ class VocaApp {
         };
     }
 
-    // ================= 4. ⚡ 5쌍 매치 매드니스 (Match Madness) =================
     renderMatch5Quiz(container, words) {
         const pairs = [...words];
         const enTiles = pairs.map(w => ({ id: w.id, text: w.word, type: 'en' })).sort(() => 0.5 - Math.random());
@@ -601,7 +589,6 @@ class VocaApp {
                 const koId = parseInt(selectedKo.dataset.id);
 
                 if (enId === koId) {
-                    // 정답 매칭!
                     window.soundEngine.playPop();
                     window.soundEngine.playCombo(matchedCount + 1);
                     selectedEn.style.visibility = 'hidden';
@@ -624,7 +611,6 @@ class VocaApp {
                         }, 500);
                     }
                 } else {
-                    // 오답
                     window.soundEngine.playWrong();
                     selectedEn.classList.add('wrong-shake');
                     selectedKo.classList.add('wrong-shake');
@@ -666,7 +652,6 @@ class VocaApp {
         document.getElementById('btn-check-answer').onclick = () => onCheck();
     }
 
-    // 단일 문제 정답/오답 및 틀린 단어 다른 유형 재출제 큐 등록
     handleSingleAnswerResult(isRight, targetWord, retryType = 'ko_to_en') {
         const footer = document.getElementById('quiz-footer');
         const session = this.quizSession;
@@ -695,10 +680,7 @@ class VocaApp {
             session.combo = 0;
             window.soundEngine.playWrong();
             window.srsManager.recordWrong(targetWord.id);
-            window.srsManager.useHeart();
-            document.getElementById('quiz-heart-val').textContent = window.srsManager.data.hearts;
 
-            // 🌟 스마트 큐: 틀린 단어는 뒤에서 "다른 유형"으로 자동 재배치!
             session.items.push({ type: retryType, word: targetWord });
 
             footer.className = 'quiz-footer-banner banner-wrong';
@@ -730,14 +712,18 @@ class VocaApp {
         const session = this.quizSession;
         window.soundEngine.playFanfare();
 
-        window.srsManager.recordStageComplete(session.title, session.score, session.initialTotal);
+        // 🌟 스테이지 완료 등록 (rawCategory 우선 등록 ➔ 로드맵 노란색 & 황금별 3개 완벽 반영!)
+        const targetCategory = session.rawCategory || (session.title.startsWith('VOCA') || session.title.startsWith('Idioms') ? session.title.split(' ')[0] + ' ' + session.title.split(' ')[1] : session.title);
+        window.srsManager.recordStageComplete(targetCategory, session.score, session.initialTotal);
+
+        this.updateHeaderStats();
 
         const quizBody = document.getElementById('quiz-body-container');
         quizBody.innerHTML = `
             <div style="text-align: center; padding: 30px 10px; animation: popIn 0.3s ease;">
                 <div style="font-size: 64px; margin-bottom: 12px;">🏆</div>
                 <h2 style="font-size: 26px; font-weight: 900; margin-bottom: 6px; color: var(--duo-green);">완벽 마스터 달성!</h2>
-                <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">${session.title}의 모든 단어를 100% 암기 완료했습니다.</p>
+                <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">${targetCategory}의 모든 단어를 100% 암기 완료했습니다.</p>
                 
                 <div style="background: var(--bg-card); border: 2px solid var(--border-color); border-radius: var(--card-radius); padding: 18px; margin-bottom: 20px;">
                     <div style="display: flex; justify-content: space-around;">
@@ -763,6 +749,7 @@ class VocaApp {
         document.getElementById('btn-quiz-done').onclick = () => this.closeQuiz();
     }
 
+    // 3. 복습 뷰 렌더링 (오답노트 카드 목록 & 망각 복습)
     renderReviewView() {
         const srs = window.srsManager;
         const dueWords = srs.getDueReviewWords(this.database.words);
@@ -794,6 +781,24 @@ class VocaApp {
                 }
                 this.buildAndStartAdaptiveSession(wrongWords, '🚨 오답노트 집중 훈련');
             };
+        }
+
+        // 오답노트 단어 목록 리스트 렌더링
+        const wrongListContainer = document.getElementById('wrong-words-preview-list');
+        if (wrongListContainer) {
+            if (wrongWords.length === 0) {
+                wrongListContainer.innerHTML = `<div style="text-align:center; color:var(--text-muted); font-size:13px; padding:12px;">오답노트에 틀린 단어가 없습니다! ✨</div>`;
+            } else {
+                wrongListContainer.innerHTML = wrongWords.slice(0, 100).map(w => `
+                    <div style="display:flex; justify-content:space-between; align-items:center; background:var(--bg-body); padding:8px 12px; border-radius:10px; border:1px solid var(--border-color); margin-bottom:6px;">
+                        <div>
+                            <span style="font-weight:900; font-size:15px; color:var(--duo-red);">${w.word}</span>
+                            <span style="font-size:13px; color:var(--text-muted); margin-left:8px;">${w.meaning}</span>
+                        </div>
+                        <button class="hero-speaker-btn" style="width:28px; height:28px; font-size:13px;" onclick="window.soundEngine.speak('${w.word.replace(/'/g, "\\'")}')">🔊</button>
+                    </div>
+                `).join('');
+            }
         }
     }
 
