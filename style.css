@@ -846,3 +846,45 @@ body {
     background: var(--bg-card);
 }
 
+
+
+/* ==========================================================================
+   매치 매드니스 타일 & 2026 최신 듀오링고 애니메이션
+   ========================================================================== */
+.match-tile {
+    min-height: 52px;
+    user-select: none;
+    transition: all 0.12s ease;
+    cursor: pointer;
+}
+
+.match-tile.selected {
+    border-color: var(--duo-purple) !important;
+    background: rgba(168, 85, 247, 0.15) !important;
+    color: var(--duo-purple-dark) !important;
+    box-shadow: 0 4px 0 var(--duo-purple) !important;
+}
+
+[data-theme="dark"] .match-tile.selected {
+    background: rgba(168, 85, 247, 0.3) !important;
+    color: #e9d5ff !important;
+}
+
+@keyframes wrongShake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-6px); }
+    40%, 80% { transform: translateX(6px); }
+}
+
+.wrong-shake {
+    animation: wrongShake 0.35s ease;
+    border-color: var(--duo-red) !important;
+    background: rgba(255, 75, 75, 0.15) !important;
+    color: var(--duo-red) !important;
+    box-shadow: 0 4px 0 var(--duo-red-dark) !important;
+}
+
+@keyframes popIn {
+    0% { transform: scale(0.92); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
