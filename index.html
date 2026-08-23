@@ -27,9 +27,10 @@
                 <span class="stat-icon">💎</span>
                 <span id="header-gem-count">0</span>
             </div>
-            <div class="header-stat stat-heart" title="남은 체력 (하트)">
-                <span class="stat-icon">❤️</span>
-                <span id="header-heart-count">5</span>
+            <div class="header-stat stat-progress" title="전체 단어 마스터 진행률" style="background: rgba(88, 204, 2, 0.12); color: var(--duo-green-dark); border-color: var(--duo-green);">
+                <span class="stat-icon">📊</span>
+                <span id="header-mastery-percent" style="font-weight: 900;">0.0%</span>
+                <span id="header-mastery-count" style="font-size: 11px; opacity: 0.85; margin-left: 2px;">(0/2,238)</span>
             </div>
         </header>
 
@@ -74,8 +75,13 @@
                             <div style="font-size: 18px; font-weight: 900;">🚨 오답노트 집중 훈련</div>
                             <div id="review-wrong-count" style="font-size: 20px; font-weight: 900; color: var(--duo-red);">0개</div>
                         </div>
-                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">틀렸던 취약 단어들만 모아서 집중적으로 훈련합니다.</p>
-                        <button class="duo-btn duo-btn-yellow" id="btn-start-wrong-review">오답 집중 훈련</button>
+                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">틀렸던 취약 단어들만 모아서 집중적으로 훈련합니다. (맞히면 목록에서 자동 삭제)</p>
+                        <button class="duo-btn duo-btn-yellow" id="btn-start-wrong-review" style="margin-bottom: 14px;">오답 집중 훈련 시작</button>
+                        
+                        <div style="font-size: 13px; font-weight: 800; color: var(--text-muted); margin-bottom: 8px;">현재 틀린 단어 목록</div>
+                        <div id="wrong-words-preview-list" style="max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;">
+                            <!-- 틀린 단어 목록 렌더링 -->
+                        </div>
                     </div>
                 </div>
             </section>
@@ -145,9 +151,8 @@
                     </div>
 
                     <div style="background: var(--bg-card); border: 2px solid var(--border-color); border-radius: var(--card-radius); padding: 20px; box-shadow: 0 4px 0 var(--border-color);">
-                        <div style="font-size: 18px; font-weight: 900; margin-bottom: 8px;">💖 하트 완충 & 테마</div>
+                        <div style="font-size: 18px; font-weight: 900; margin-bottom: 8px;">🌙 테마 설정</div>
                         <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 14px;">
-                            <button class="duo-btn duo-btn-yellow" id="btn-refill-hearts">💖 하트 5개 즉시 충전</button>
                             <button class="duo-btn duo-btn-outline" id="btn-theme-toggle">🌙 다크 모드</button>
                         </div>
                     </div>
@@ -181,10 +186,6 @@
                 <button class="quiz-close-btn" onclick="window.vocaApp.closeQuiz()">✕</button>
                 <div class="quiz-progress-track">
                     <div id="quiz-progress-bar" class="quiz-progress-fill"></div>
-                </div>
-                <div class="quiz-heart-display">
-                    <span>❤️</span>
-                    <span id="quiz-heart-val">5</span>
                 </div>
             </div>
 
