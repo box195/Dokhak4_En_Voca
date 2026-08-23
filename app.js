@@ -1,9 +1,11 @@
+// 독학사 4단계 영어 듀오링고 웹앱 메인 로직 (100% 전수 출제 + 틀린단어 재출제 + 오답노트 마스터)
 class VocaApp {
     constructor() {
         this.database = window.VOCA_DATABASE || { words: [] };
         this.currentCategoryTab = 'VOCA'; // 'VOCA' or 'Idioms'
         this.currentView = 'view-path';
         this.quizSession = null;
+        this.selectedStageCategory = null;
         
         this.init();
     }
@@ -28,9 +30,13 @@ class VocaApp {
         const srs = window.srsManager;
         srs.updateHearts();
 
-        document.getElementById('header-streak-count').textContent = srs.data.streak;
-        document.getElementById('header-gem-count').textContent = srs.data.xp;
-        document.getElementById('header-heart-count').textContent = srs.data.hearts;
+        const streakEl = document.getElementById('header-streak-count');
+        const gemEl = document.getElementById('header-gem-count');
+        const heartEl = document.getElementById('header-heart-count');
+
+        if (streakEl) streakEl.textContent = srs.data.streak;
+        if (gemEl) gemEl.textContent = srs.data.xp;
+        if (heartEl) heartEl.textContent = srs.data.hearts;
     }
 
     setupEventListeners() {
@@ -99,7 +105,6 @@ class VocaApp {
             shareLinkBtn.addEventListener('click', async () => {
                 let key = window.srsManager.cloudKey;
                 if (!key) {
-                    // 키가 없으면 즉시 자동 발급
                     key = await window.srsManager.connectCloudKey('');
                     if (syncInput && key) syncInput.value = key;
                 }
@@ -170,106 +175,19 @@ class VocaApp {
     }
 
     switchView(viewId) {
-        document.querySelectorAll('.view-section').forEach(view => view.classList.remove('active'));
+        document.querySelectorAll('.view-section').forEach(sec => sec.classList.remove('active'));
         const target = document.getElementById(viewId);
         if (target) {
             target.classList.add('active');
             this.currentView = viewId;
         }
-        if (viewId === 'view-review') this.renderReviewView();
+
+        if (viewId === 'view-path') this.renderRoadmap();
         if (viewId === 'view-voca') this.renderVocaList();
-        if (viewId === 'view-compare') this.renderCompareView(this.currentComparePage || 1);
-        this.updateHeaderStats();
+        if (viewId === 'view-review') this.renderReviewView();
     }
 
-    // 5. 원본 이미지 대조 & 검수기 뷰 로직
-    renderCompareView(pageNum = 1) {
-        this.currentComparePage = pageNum;
-        const selectBox = document.getElementById('select-compare-page');
-        const imgPreview = document.getElementById('compare-preview-img');
-        const titleEl = document.getElementById('compare-page-title');
-        const listContainer = document.getElementById('compare-words-list');
-
-        if (!selectBox || !listContainer) return;
-
-        // 드롭다운 옵션 채우기 (처음 1회)
-        if (selectBox.children.length === 0) {
-            for (let i = 1; i <= 60; i++) {
-                const opt = document.createElement('option');
-                opt.value = i;
-                const prefix = i <= 39 ? `VOCA ${String(i).padStart(2, '0')}` : `Idioms ${String(i - 39).padStart(2, '0')}`;
-                opt.textContent = `Page ${String(i).padStart(2, '0')} (${prefix})`;
-                selectBox.appendChild(opt);
-            }
-
-            selectBox.addEventListener('change', (e) => {
-                this.renderCompareView(parseInt(e.target.value));
-            });
-
-            document.getElementById('btn-prev-page').addEventListener('click', () => {
-                if (this.currentComparePage > 1) {
-                    this.renderCompareView(this.currentComparePage - 1);
-                }
-            });
-
-            document.getElementById('btn-next-page').addEventListener('click', () => {
-                if (this.currentComparePage < 60) {
-                    this.renderCompareView(this.currentComparePage + 1);
-                }
-            });
-
-            document.getElementById('btn-save-page-edits').addEventListener('click', () => {
-                this.saveComparePageEdits();
-            });
-        }
-
-        selectBox.value = pageNum;
-        const pageStr = String(pageNum).padStart(3, '0');
-        imgPreview.src = `voca_captures/page_${pageStr}.png`;
-
-        const prefix = pageNum <= 39 ? `VOCA ${String(pageNum).padStart(2, '0')}` : `Idioms ${String(pageNum - 39).padStart(2, '0')}`;
-        titleEl.textContent = `Page ${pageStr} (${prefix}) 단어 목록`;
-
-        // 해당 페이지의 단어들 필터링
-        const pageWords = this.database.words.filter(w => w.page === pageNum);
-
-        listContainer.innerHTML = pageWords.map((w, idx) => `
-            <div class="compare-row" data-word-id="${w.id}">
-                <span class="compare-num">${idx + 1}</span>
-                <input type="text" class="edit-input-word" value="${w.word.replace(/"/g, '&quot;')}" placeholder="영어 단어">
-                <input type="text" class="edit-input-meaning" value="${w.meaning.replace(/"/g, '&quot;')}" placeholder="한국어 뜻">
-                <button class="hero-speaker-btn" style="width:32px; height:32px; font-size:14px;" onclick="window.soundEngine.speak('${w.word.replace(/'/g, "\\'")}')">🔊</button>
-            </div>
-        `).join('');
-    }
-
-    saveComparePageEdits() {
-        const rows = document.querySelectorAll('.compare-row');
-        let editedCount = 0;
-
-        rows.forEach(row => {
-            const wid = parseInt(row.dataset.wordId);
-            const wordInput = row.querySelector('.edit-input-word').value.trim();
-            const meaningInput = row.querySelector('.edit-input-meaning').value.trim();
-
-            const target = this.database.words.find(w => w.id === wid);
-            if (target) {
-                if (target.word !== wordInput || target.meaning !== meaningInput) {
-                    target.word = wordInput;
-                    target.meaning = meaningInput;
-                    editedCount++;
-                }
-            }
-        });
-
-        // 로컬스토리지에 커스텀 DB 상태 저장
-        localStorage.setItem('DOKHAK_CUSTOM_WORDS_DB', JSON.stringify(this.database.words));
-        window.soundEngine.playCorrect();
-        alert(`💾 Page ${this.currentComparePage}의 수정사항 ${editedCount}개가 안전하게 저장되었습니다!`);
-    }
-
-
-    // 1. 로드맵 렌더링
+    // 1. 듀오링고 로드맵 (지그재그 스테이지) 렌더링
     renderRoadmap() {
         const container = document.getElementById('path-nodes-container');
         if (!container) return;
@@ -277,16 +195,20 @@ class VocaApp {
 
         const isVoca = this.currentCategoryTab === 'VOCA';
         const totalDays = isVoca ? 39 : 21;
-        const prefix = isVoca ? 'VOCA' : 'Idioms';
+        const prefix = isVoca ? 'VOCA ' : 'Idioms ';
+
+        const offsets = [0, 45, 75, 45, 0, -45, -75, -45];
 
         for (let day = 1; day <= totalDays; day++) {
-            const catName = `${prefix} ${String(day).padStart(2, '0')}`;
-            const completedInfo = window.srsManager.data.completedDays[catName];
-            const isCompleted = !!completedInfo;
-            const stars = isCompleted ? '⭐'.repeat(completedInfo.stars) : '';
+            const padDay = day < 10 ? `0${day}` : `${day}`;
+            const catName = `${prefix}${padDay}`;
 
-            // 지그재그 오프셋 계산 (듀오링고 특유의 S자 곡선)
-            const offsets = [0, 40, 65, 40, 0, -40, -65, -40];
+            const stageWords = this.database.words.filter(w => w.category === catName);
+            const wordCount = stageWords.length;
+
+            const compData = window.srsManager.data.completedDays[catName];
+            const isCompleted = !!compData;
+            const stars = compData ? '⭐'.repeat(compData.stars) : '';
             const offsetX = offsets[(day - 1) % offsets.length];
 
             const nodeWrapper = document.createElement('div');
@@ -296,54 +218,142 @@ class VocaApp {
             nodeWrapper.innerHTML = `
                 <div class="stage-node ${isCompleted ? 'completed' : ''}" data-category="${catName}">
                     <div style="font-size: 20px;">${isCompleted ? '👑' : '📖'}</div>
-                    <div style="font-size: 13px;">${day}</div>
+                    <div style="font-size: 13px; font-weight:900;">${day}</div>
                     ${stars ? `<div class="stage-stars">${stars}</div>` : ''}
                 </div>
-                <div class="stage-label">${catName}</div>
+                <div class="stage-label">${catName} (${wordCount}개)</div>
             `;
 
             nodeWrapper.querySelector('.stage-node').addEventListener('click', () => {
-                this.startStageQuiz(catName);
+                this.showStageModal(catName, stageWords);
             });
 
             container.appendChild(nodeWrapper);
         }
     }
 
-    // 2. 퀴즈 세션 시작
-    startStageQuiz(category) {
-        // 하트 확인
+    // 스테이지 선택 모달 (전체 학습 / 미리보기 / 빠른 풀기)
+    showStageModal(category, words) {
         if (window.srsManager.data.hearts <= 0) {
-            alert('💔 하트가 부족합니다! 복습 탭에서 충전하거나 30분을 기다려주세요.');
+            alert('💔 하트가 부족합니다! 설정 탭에서 충전하거나 30분을 기다려주세요.');
             return;
         }
 
-        // 해당 카테고리의 단어들 필터링
-        const stageWords = this.database.words.filter(w => w.category === category);
-        if (stageWords.length === 0) {
-            alert('해당 챕터의 단어를 찾을 수 없습니다.');
-            return;
-        }
+        const modal = document.createElement('div');
+        modal.className = 'quiz-overlay active';
+        modal.id = 'stage-select-modal';
+        modal.style.zIndex = '999';
 
-        this.openQuizOverlay(stageWords, category);
+        modal.innerHTML = `
+            <div style="max-width: 480px; width: 90%; background: var(--bg-card); border: 2px solid var(--border-color); border-radius: var(--card-radius); padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); animation: popIn 0.25s ease;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px;">
+                    <div style="font-size: 22px; font-weight: 900; color: var(--duo-blue);">📖 ${category}</div>
+                    <button class="quiz-close-btn" id="btn-close-stage-modal" style="position:static;">✕</button>
+                </div>
+                <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 20px;">총 <strong>${words.length}개</strong>의 단어가 수록되어 있습니다. 어떤 방식으로 학습하시겠습니까?</p>
+                
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <button class="duo-btn duo-btn-green" id="btn-start-full-quiz" style="padding: 14px; font-size: 16px;">
+                        🔥 ${words.length}개 전체 단어 완벽 마스터 (전수 출제)
+                    </button>
+                    <button class="duo-btn duo-btn-blue" id="btn-preview-words" style="padding: 12px; font-size: 14px;">
+                        📑 단어 목록 먼저 훑어보기 (${words.length}개)
+                    </button>
+                    <button class="duo-btn duo-btn-outline" id="btn-start-15-quiz" style="padding: 10px; font-size: 13px;">
+                        ⚡ 15문제 빠른 훈련 모드
+                    </button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        document.getElementById('btn-close-stage-modal').onclick = () => modal.remove();
+        
+        document.getElementById('btn-start-full-quiz').onclick = () => {
+            modal.remove();
+            this.openQuizOverlay(words, `${category} 전체 마스터`, words.length);
+        };
+
+        document.getElementById('btn-start-15-quiz').onclick = () => {
+            modal.remove();
+            this.openQuizOverlay(words, `${category} 빠른 훈련`, 15);
+        };
+
+        document.getElementById('btn-preview-words').onclick = () => {
+            modal.remove();
+            this.showWordsPreviewModal(category, words);
+        };
     }
 
-    openQuizOverlay(wordList, sessionTitle = '단어 학습') {
+    // 단어 목록 미리보기 모달
+    showWordsPreviewModal(category, words) {
+        const modal = document.createElement('div');
+        modal.className = 'quiz-overlay active';
+        modal.id = 'words-preview-modal';
+        modal.style.zIndex = '999';
+
+        modal.innerHTML = `
+            <div style="max-width: 520px; width: 95%; height: 85vh; background: var(--bg-card); border: 2px solid var(--border-color); border-radius: var(--card-radius); padding: 20px; display: flex; flex-direction: column; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px; border-bottom: 2px solid var(--border-color); padding-bottom: 10px;">
+                    <div>
+                        <div style="font-size: 20px; font-weight: 900; color: var(--duo-blue);">${category} 단어 목록</div>
+                        <div style="font-size: 12px; color: var(--text-muted);">총 ${words.length}개 단어 수록</div>
+                    </div>
+                    <button class="quiz-close-btn" id="btn-close-preview-modal" style="position:static;">✕</button>
+                </div>
+                
+                <div style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px;">
+                    ${words.map((w, idx) => `
+                        <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-body); padding: 10px 14px; border-radius: 12px; border: 1px solid var(--border-color);">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span style="font-size: 12px; font-weight: 900; color: var(--text-muted); width: 20px;">${idx + 1}</span>
+                                <div>
+                                    <div style="font-size: 16px; font-weight: 900; color: var(--text-main);">${w.word}</div>
+                                    <div style="font-size: 13px; color: var(--text-muted); font-weight: 600;">${w.meaning}</div>
+                                </div>
+                            </div>
+                            <button class="hero-speaker-btn" style="width:34px; height:34px; font-size:15px;" onclick="window.soundEngine.speak('${w.word.replace(/'/g, "\\'")}')">🔊</button>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <div style="margin-top: 14px; padding-top: 10px; border-top: 2px solid var(--border-color);">
+                    <button class="duo-btn duo-btn-green" id="btn-start-from-preview" style="width: 100%; font-size: 16px;">
+                        🔥 ${words.length}개 전체 퀴즈 시작하기
+                    </button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        document.getElementById('btn-close-preview-modal').onclick = () => modal.remove();
+        document.getElementById('btn-start-from-preview').onclick = () => {
+            modal.remove();
+            this.openQuizOverlay(words, `${category} 전체 마스터`, words.length);
+        };
+    }
+
+    // 2. 퀴즈 세션 시작 (전수 출제 & 스마트 오답 큐 지원)
+    openQuizOverlay(wordList, sessionTitle = '단어 학습', maxCount = null) {
         const overlay = document.getElementById('quiz-modal');
         overlay.classList.add('active');
 
-        // 퀴즈 문제 셋 생성 (셔플)
+        // 단어 셔플
         const shuffled = [...wordList].sort(() => 0.5 - Math.random());
-        const sessionCount = Math.min(shuffled.length, 10); // 한 세션당 10문제
-        const quizItems = shuffled.slice(0, sessionCount);
+        const totalCount = maxCount ? Math.min(shuffled.length, maxCount) : shuffled.length;
+        const quizItems = shuffled.slice(0, totalCount);
 
         this.quizSession = {
             title: sessionTitle,
             items: quizItems,
             currentIndex: 0,
             score: 0,
-            total: sessionCount,
-            combo: 0
+            initialTotal: totalCount,
+            totalAnswered: 0,
+            combo: 0,
+            retryQueue: []
         };
 
         document.getElementById('quiz-heart-val').textContent = window.srsManager.data.hearts;
@@ -362,27 +372,30 @@ class VocaApp {
     renderNextQuestion() {
         this.hideFeedbackBanner();
         const session = this.quizSession;
-        if (!session || session.currentIndex >= session.total) {
+        if (!session || session.currentIndex >= session.items.length) {
             this.finishQuizSession();
             return;
         }
 
-        // 프로그레스 바 업데이트
-        const progressPercent = (session.currentIndex / session.total) * 100;
+        // 프로그레스 바 업데이트 (맞힌 진행률)
+        const progressPercent = Math.min(100, (session.currentIndex / session.items.length) * 100);
         document.getElementById('quiz-progress-bar').style.width = `${progressPercent}%`;
 
         const currentWord = session.items[session.currentIndex];
         const quizBody = document.getElementById('quiz-body-container');
         quizBody.innerHTML = '';
 
-        // 3가지 퀴즈 모드 중 랜덤 또는 단어 특성에 맞게 선택
-        // 1) 단어 블록 맞추기 (Word Builder)
-        // 2) 4지선다 객관식 (Choice)
-        // 3) 스펠링 / 플래시
+        // 퀴즈 문제 번호 표시
+        const qNumBadge = document.createElement('div');
+        qNumBadge.style.cssText = 'text-align:center; font-size:12px; font-weight:800; color:var(--text-muted); margin-bottom:8px;';
+        qNumBadge.textContent = `문제 ${session.currentIndex + 1} / ${session.items.length}`;
+        quizBody.appendChild(qNumBadge);
+
+        // 3가지 퀴즈 모드 중 출제
         const quizTypes = ['choice', 'builder', 'flash'];
         const chosenType = quizTypes[session.currentIndex % quizTypes.length];
 
-        if (chosenType === 'builder' && currentWord.word.length >= 3 && currentWord.word.length <= 15) {
+        if (chosenType === 'builder' && currentWord.word.length >= 3 && currentWord.word.length <= 15 && !currentWord.word.includes('(')) {
             this.renderBuilderQuiz(quizBody, currentWord);
         } else if (chosenType === 'flash') {
             this.renderFlashcardQuiz(quizBody, currentWord);
@@ -393,14 +406,14 @@ class VocaApp {
 
     // 모드 1: 4지선다 퀴즈
     renderChoiceQuiz(container, targetWord) {
-        // 보기 4개 생성 (정답 1개 + 오답 3개)
         const allOtherWords = this.database.words.filter(w => w.id !== targetWord.id);
         const wrongDistractors = allOtherWords.sort(() => 0.5 - Math.random()).slice(0, 3);
         const options = [targetWord, ...wrongDistractors].sort(() => 0.5 - Math.random());
 
         let selectedOption = null;
 
-        container.innerHTML = `
+        const quizContent = document.createElement('div');
+        quizContent.innerHTML = `
             <div class="quiz-prompt-title">알맞은 뜻을 선택하세요</div>
             <div class="quiz-word-hero">
                 <div class="hero-word">${targetWord.word}</div>
@@ -415,12 +428,12 @@ class VocaApp {
                 `).join('')}
             </div>
         `;
+        container.appendChild(quizContent);
 
         document.getElementById('hero-tts-btn').addEventListener('click', () => {
             window.soundEngine.speak(targetWord.word);
         });
 
-        // 자동 1회 발음
         setTimeout(() => window.soundEngine.speak(targetWord.word), 150);
 
         const choiceCards = container.querySelectorAll('.choice-card');
@@ -438,10 +451,9 @@ class VocaApp {
         });
     }
 
-    // 모드 2: 듀오링고 단어 블록 맞추기 (Word Builder)
+    // 모드 2: 단어 블록 맞추기 (Word Builder)
     renderBuilderQuiz(container, targetWord) {
         const cleanWord = targetWord.word.toLowerCase();
-        // 철자 조각 또는 단어 단위 쪼개기
         let pieces = cleanWord.split('');
         if (cleanWord.includes(' ')) {
             pieces = cleanWord.split(' ');
@@ -449,7 +461,8 @@ class VocaApp {
         const shuffledPieces = [...pieces].sort(() => 0.5 - Math.random());
         let assembled = [];
 
-        container.innerHTML = `
+        const quizContent = document.createElement('div');
+        quizContent.innerHTML = `
             <div class="quiz-prompt-title">단어 철자를 순서대로 조립하세요</div>
             <div class="quiz-word-hero">
                 <div class="hero-word" style="font-size: 22px; color: var(--duo-blue);">${targetWord.meaning}</div>
@@ -462,6 +475,7 @@ class VocaApp {
                 `).join('')}
             </div>
         `;
+        container.appendChild(quizContent);
 
         document.getElementById('hero-tts-btn').addEventListener('click', () => {
             window.soundEngine.speak(targetWord.word);
@@ -490,13 +504,12 @@ class VocaApp {
                 });
 
                 slotArea.appendChild(slotTile);
-                assembled.push({ piece: piece, origIdx: tile.dataset.idx });
+                assembled.push({ piece, origIdx: tile.dataset.idx });
 
-                // 조립 완료 시 확인 버튼
                 if (assembled.length === pieces.length) {
                     this.showCheckButton(() => {
-                        const userStr = assembled.map(a => a.piece).join(cleanWord.includes(' ') ? ' ' : '');
-                        const isRight = userStr === cleanWord;
+                        const builtWord = assembled.map(a => a.piece).join(cleanWord.includes(' ') ? ' ' : '');
+                        const isRight = builtWord.toLowerCase() === cleanWord;
                         this.handleAnswerResult(isRight, targetWord);
                     });
                 }
@@ -504,28 +517,30 @@ class VocaApp {
         });
     }
 
-    // 모드 3: 3D 플래시카드 모드
+    // 모드 3: 플래시카드 모드
     renderFlashcardQuiz(container, targetWord) {
-        container.innerHTML = `
-            <div class="quiz-prompt-title">카드를 탭하여 뜻을 확인하세요</div>
-            <div class="flashcard-3d-wrapper">
+        const quizContent = document.createElement('div');
+        quizContent.innerHTML = `
+            <div class="quiz-prompt-title">카드를 뒤집어 뜻을 확인하세요</div>
+            <div class="flashcard-container" id="fc-container">
                 <div class="flashcard-inner" id="fc-inner">
-                    <div class="flashcard-face flashcard-front">
-                        <div style="font-size: 32px; font-weight: 900; margin-bottom: 12px;">${targetWord.word}</div>
-                        <button class="hero-speaker-btn" id="hero-tts-btn">🔊</button>
-                        <div style="margin-top: 24px; font-size: 13px; color: var(--text-muted);">👉 탭해서 뒤집기</div>
+                    <div class="flashcard-front">
+                        <div style="font-size: 14px; color: var(--text-muted); font-weight:800; margin-bottom:8px;">영어 단어</div>
+                        <div class="fc-word">${targetWord.word}</div>
+                        <button class="hero-speaker-btn" id="hero-tts-btn" style="margin-top:12px;">🔊</button>
                     </div>
-                    <div class="flashcard-face flashcard-back">
-                        <div style="font-size: 24px; font-weight: 900; color: var(--duo-green); margin-bottom: 12px;">${targetWord.meaning}</div>
-                        <div style="font-size: 14px; color: var(--text-muted);">${targetWord.category}</div>
+                    <div class="flashcard-back">
+                        <div style="font-size: 14px; color: var(--text-muted); font-weight:800; margin-bottom:8px;">한국어 뜻</div>
+                        <div class="fc-meaning">${targetWord.meaning}</div>
                     </div>
                 </div>
             </div>
-            <div style="display: flex; gap: 12px; margin-top: 10px;">
-                <button class="duo-btn duo-btn-outline" id="btn-fc-hard" style="flex:1;">❌ 몰라요</button>
-                <button class="duo-btn duo-btn-green" id="btn-fc-easy" style="flex:1;">⭕ 알아요</button>
+            <div style="display:flex; gap:12px; width:100%; max-width:400px; margin-top:20px;">
+                <button class="duo-btn duo-btn-red" id="btn-fc-hard" style="flex:1;">❌ 아직 헷갈려요</button>
+                <button class="duo-btn duo-btn-green" id="btn-fc-easy" style="flex:1;">⭕ 확실히 알아요</button>
             </div>
         `;
+        container.appendChild(quizContent);
 
         const cardInner = document.getElementById('fc-inner');
         cardInner.addEventListener('click', () => {
@@ -559,6 +574,7 @@ class VocaApp {
         });
     }
 
+    // 정답/오답 판정 및 틀린 단어 스마트 재출제 큐 등록
     handleAnswerResult(isRight, targetWord) {
         const footer = document.getElementById('quiz-footer');
         const session = this.quizSession;
@@ -590,13 +606,16 @@ class VocaApp {
             window.srsManager.useHeart();
             document.getElementById('quiz-heart-val').textContent = window.srsManager.data.hearts;
 
+            // 🌟 듀오링고 스마트 오답 재출제: 틀린 단어를 이번 세션 맨 뒤에 다시 삽입!
+            session.items.push(targetWord);
+
             footer.className = 'quiz-footer-banner banner-wrong';
             footer.innerHTML = `
                 <div class="banner-message-row">
                     <div class="banner-icon">💡</div>
                     <div>
                         <div class="banner-title">정답: ${targetWord.word}</div>
-                        <div class="banner-subtitle">${targetWord.meaning}</div>
+                        <div class="banner-subtitle">${targetWord.meaning} (세션 끝에 다시 출제됩니다!)</div>
                     </div>
                 </div>
                 <button class="duo-btn duo-btn-yellow" id="btn-next-q">계속하기</button>
@@ -620,33 +639,32 @@ class VocaApp {
         window.soundEngine.playFanfare();
 
         // 스테이지 완료 기록
-        window.srsManager.recordStageComplete(session.title, session.score, session.total);
+        window.srsManager.recordStageComplete(session.title, session.score, session.initialTotal);
 
         const quizBody = document.getElementById('quiz-body-container');
         quizBody.innerHTML = `
             <div style="text-align: center; padding: 40px 10px;">
                 <div style="font-size: 64px; margin-bottom: 16px;">🏆</div>
-                <h2 style="font-size: 26px; font-weight: 900; margin-bottom: 8px;">학습 완료!</h2>
-                <p style="color: var(--text-muted); font-size: 15px; margin-bottom: 24px;">${session.title} 챕터를 멋지게 완료했습니다.</p>
+                <h2 style="font-size: 26px; font-weight: 900; margin-bottom: 8px;">완벽 마스터 완료!</h2>
+                <p style="color: var(--text-muted); font-size: 15px; margin-bottom: 24px;">${session.title}의 모든 단어를 완벽하게 훈련했습니다.</p>
                 
                 <div style="background: var(--bg-card); border: 2px solid var(--border-color); border-radius: var(--card-radius); padding: 20px; margin-bottom: 24px;">
                     <div style="display: flex; justify-content: space-around;">
                         <div>
-                            <div style="font-size: 24px; font-weight: 900; color: var(--duo-green);">${session.score} / ${session.total}</div>
-                            <div style="font-size: 12px; color: var(--text-muted); font-weight: 800;">맞힌 문제</div>
+                            <div style="font-size: 24px; font-weight: 900; color: var(--duo-green);">${session.initialTotal} / ${session.initialTotal}</div>
+                            <div style="font-size: 12px; color: var(--text-muted); font-weight: 800;">마스터한 단어</div>
                         </div>
                         <div>
-                            <div style="font-size: 24px; font-weight: 900; color: var(--duo-yellow);">+${session.score * 10} XP</div>
+                            <div style="font-size: 24px; font-weight: 900; color: var(--duo-yellow);">+${session.initialTotal * 10} XP</div>
                             <div style="font-size: 12px; color: var(--text-muted); font-weight: 800;">획득 경험치</div>
                         </div>
                     </div>
                 </div>
 
-                <button class="duo-btn duo-btn-green" id="btn-quiz-done">홈으로 돌아가기</button>
+                <button class="duo-btn duo-btn-green" id="btn-quiz-done">학습 마치기</button>
             </div>
         `;
 
-        this.hideFeedbackBanner();
         document.getElementById('btn-quiz-done').addEventListener('click', () => {
             this.closeQuiz();
         });
@@ -658,8 +676,11 @@ class VocaApp {
         const dueWords = srs.getDueReviewWords(this.database.words);
         const wrongWords = this.database.words.filter(w => srs.data.wrongNotes.includes(w.id));
 
-        document.getElementById('review-due-count').textContent = `${dueWords.length}개`;
-        document.getElementById('review-wrong-count').textContent = `${wrongWords.length}개`;
+        const dueEl = document.getElementById('review-due-count');
+        const wrongEl = document.getElementById('review-wrong-count');
+
+        if (dueEl) dueEl.textContent = `${dueWords.length}개`;
+        if (wrongEl) wrongEl.textContent = `${wrongWords.length}개`;
 
         const btnDue = document.getElementById('btn-start-due-review');
         if (btnDue) {
@@ -668,7 +689,7 @@ class VocaApp {
                     alert('🎉 오늘 복습할 단어가 없습니다! 멋져요.');
                     return;
                 }
-                this.openQuizOverlay(dueWords, '오늘의 SRS 복습');
+                this.openQuizOverlay(dueWords, '오늘의 SRS 복습', dueWords.length);
             };
         }
 
@@ -676,10 +697,10 @@ class VocaApp {
         if (btnWrong) {
             btnWrong.onclick = () => {
                 if (wrongWords.length === 0) {
-                    alert('👏 오답노트가 비어있습니다!');
+                    alert('👏 오답노트가 비어있습니다! 틀린 단어가 없습니다.');
                     return;
                 }
-                this.openQuizOverlay(wrongWords, '오답노트 집중 훈련');
+                this.openQuizOverlay(wrongWords, '🚨 오답노트 집중 훈련', wrongWords.length);
             };
         }
     }
@@ -695,17 +716,19 @@ class VocaApp {
             words = words.filter(w => w.word.toLowerCase().includes(q) || w.meaning.includes(q));
         }
 
-        document.getElementById('voca-total-badge').textContent = `총 ${words.length}개`;
+        const badge = document.getElementById('voca-total-badge');
+        if (badge) badge.textContent = `총 ${words.length}개`;
 
-        // 300개 단위 렌더링
         listContainer.innerHTML = words.slice(0, 300).map(w => {
             const isStarred = window.srsManager.data.wordStats[w.id]?.starred;
+            const isWrong = window.srsManager.data.wrongNotes.includes(w.id);
             return `
                 <div class="voca-item-card">
                     <div class="voca-item-left">
                         <div class="voca-item-word">
                             <span>${w.word}</span>
                             <span class="voca-item-tag">${w.category}</span>
+                            ${isWrong ? `<span style="font-size:11px; background:var(--duo-red); color:#fff; padding:2px 6px; border-radius:6px; font-weight:800;">오답</span>` : ''}
                         </div>
                         <div class="voca-item-meaning">${w.meaning}</div>
                     </div>
