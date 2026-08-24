@@ -1,4 +1,4 @@
-// 에빙하우스 망각곡선 기반 간격 반복 시스템 (SRS) & 100% 완전 자동 실시간 클라우드 동기화 엔진
+// 에빙하우스 망각곡선 기반 간격 반복 시스템 (SRS) & 완벽한 오답노트 영구 보존 엔진
 class SRSManager {
     constructor() {
         this.STORAGE_KEY = 'DOKHAK_VOCA_USER_DATA_V1';
@@ -10,15 +10,12 @@ class SRSManager {
         
         this.data = this.loadData();
         
-        // URL에 클라우드 키가 포함되어 있으면 자동 장착
         this.checkUrlCloudKey();
 
-        // 앱 시작 시 클라우드에서 최신 진도 당겨오기
         if (this.cloudKey) {
             this.pullFromCloud();
         }
 
-        // 화면 탭 전환/스마트폰 복귀 시 자동 풀링
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden && this.cloudKey) {
                 this.pullFromCloud();
@@ -28,15 +25,12 @@ class SRSManager {
 
     getDefaultData() {
         return {
-            hearts: 5,
-            maxHearts: 5,
-            lastHeartTime: Date.now(),
             xp: 0,
             streak: 1,
             lastStudyDate: new Date().toISOString().split('T')[0],
-            completedDays: {},
-            wordStats: {},
-            wrongNotes: [],
+            completedDays: {}, // { "VOCA 01": { stars: 3, score: 100, completedAt: ... } }
+            wordStats: {},     // { "word_id": { level: 0~5, nextReview: timestamp, wrongCount: 0, rightCount: 0, starred: false } }
+            wrongNotes: [],    // [ 1, 5, 12 ... ] 틀린 단어 ID 정수 배열
             updatedAt: Date.now()
         };
     }
@@ -46,7 +40,12 @@ class SRSManager {
             const raw = localStorage.getItem(this.STORAGE_KEY);
             if (raw) {
                 const parsed = JSON.parse(raw);
-                return Object.assign(this.getDefaultData(), parsed);
+                const merged = Object.assign(this.getDefaultData(), parsed);
+                // wrongNotes 배열 정수 정규화
+                if (Array.isArray(merged.wrongNotes)) {
+                    merged.wrongNotes = merged.wrongNotes.map(id => parseInt(id)).filter(id => !isNaN(id));
+                }
+                return merged;
             }
         } catch (e) {
             console.error("Failed to load user data:", e);
@@ -62,41 +61,6 @@ class SRSManager {
         } catch (e) {
             console.error("Failed to save user data:", e);
         }
-    }
-
-    // 하트 자동 충전 체크 (30분마다 1개 충전)
-    updateHearts() {
-        if (this.data.hearts >= this.data.maxHearts) {
-            this.data.lastHeartTime = Date.now();
-            return;
-        }
-        const now = Date.now();
-        const diffMs = now - this.data.lastHeartTime;
-        const RECHARGE_INTERVAL = 30 * 60 * 1000;
-        const addedHearts = Math.floor(diffMs / RECHARGE_INTERVAL);
-
-        if (addedHearts > 0) {
-            this.data.hearts = Math.min(this.data.maxHearts, this.data.hearts + addedHearts);
-            this.data.lastHeartTime = now - (diffMs % RECHARGE_INTERVAL);
-            this.saveData();
-        }
-    }
-
-    useHeart() {
-        this.updateHearts();
-        if (this.data.hearts > 0) {
-            this.data.hearts--;
-            this.data.lastHeartTime = Date.now();
-            this.saveData();
-            return true;
-        }
-        return false;
-    }
-
-    refillHearts() {
-        this.data.hearts = this.data.maxHearts;
-        this.data.lastHeartTime = Date.now();
-        this.saveData();
     }
 
     checkStreak() {
@@ -127,59 +91,75 @@ class SRSManager {
         return intervals[Math.min(level, intervals.length - 1)];
     }
 
-    recordRight(wordId) {
-        if (!this.data.wordStats[wordId]) {
-            this.data.wordStats[wordId] = { level: 0, rightCount: 0, wrongCount: 0, starred: false, nextReview: 0 };
+    // 단어 정답 처리 (isFromWrongSession: 오답노트 집중 훈련에서 맞혔을 때만 오답노트에서 삭제!)
+    recordRight(wordId, isFromWrongSession = false) {
+        const numId = parseInt(wordId);
+        if (isNaN(numId)) return;
+
+        if (!this.data.wordStats[numId]) {
+            this.data.wordStats[numId] = { level: 0, rightCount: 0, wrongCount: 0, starred: false, nextReview: 0 };
         }
-        const stat = this.data.wordStats[wordId];
+        const stat = this.data.wordStats[numId];
         stat.rightCount++;
         stat.level = Math.min(stat.level + 1, 5);
         
         const days = this.getIntervalDays(stat.level);
         stat.nextReview = Date.now() + (days * 24 * 60 * 60 * 1000);
 
-        const idx = this.data.wrongNotes.indexOf(wordId);
-        if (idx !== -1) {
-            this.data.wrongNotes.splice(idx, 1);
+        // 🌟 오답노트 집중 훈련에서 맞혔을 때만 오답노트에서 제거!
+        if (isFromWrongSession) {
+            const idx = this.data.wrongNotes.indexOf(numId);
+            if (idx !== -1) {
+                this.data.wrongNotes.splice(idx, 1);
+            }
         }
 
         this.addXP(10);
         this.saveData();
     }
 
+    // 단어 오답 처리 (오답노트에 영구 등록)
     recordWrong(wordId) {
-        if (!this.data.wordStats[wordId]) {
-            this.data.wordStats[wordId] = { level: 0, rightCount: 0, wrongCount: 0, starred: false, nextReview: 0 };
+        const numId = parseInt(wordId);
+        if (isNaN(numId)) return;
+
+        if (!this.data.wordStats[numId]) {
+            this.data.wordStats[numId] = { level: 0, rightCount: 0, wrongCount: 0, starred: false, nextReview: 0 };
         }
-        const stat = this.data.wordStats[wordId];
+        const stat = this.data.wordStats[numId];
         stat.wrongCount++;
         stat.level = Math.max(0, stat.level - 1);
         stat.nextReview = Date.now() + (12 * 60 * 60 * 1000);
 
-        if (!this.data.wrongNotes.includes(wordId)) {
-            this.data.wrongNotes.push(wordId);
+        // 오답노트에 중복 없이 추가
+        if (!this.data.wrongNotes.includes(numId)) {
+            this.data.wrongNotes.push(numId);
         }
 
         this.saveData();
     }
 
     toggleStar(wordId) {
-        if (!this.data.wordStats[wordId]) {
-            this.data.wordStats[wordId] = { level: 0, rightCount: 0, wrongCount: 0, starred: false, nextReview: 0 };
+        const numId = parseInt(wordId);
+        if (isNaN(numId)) return false;
+
+        if (!this.data.wordStats[numId]) {
+            this.data.wordStats[numId] = { level: 0, rightCount: 0, wrongCount: 0, starred: false, nextReview: 0 };
         }
-        this.data.wordStats[wordId].starred = !this.data.wordStats[wordId].starred;
+        this.data.wordStats[numId].starred = !this.data.wordStats[numId].starred;
         this.saveData();
-        return this.data.wordStats[wordId].starred;
+        return this.data.wordStats[numId].starred;
     }
 
     recordStageComplete(category, score, total) {
-        const ratio = score / total;
-        let stars = 1;
-        if (ratio >= 0.9) stars = 3;
-        else if (ratio >= 0.7) stars = 2;
+        if (!category) return;
+        const ratio = total > 0 ? (score / total) : 1;
+        let stars = 3; // 완벽 마스터 시 3성 부여
+        if (ratio < 0.7) stars = 2;
+        if (ratio < 0.5) stars = 1;
 
         const prev = this.data.completedDays[category];
-        if (!prev || stars > prev.stars) {
+        if (!prev || stars >= prev.stars) {
             this.data.completedDays[category] = {
                 stars: stars,
                 score: score,
@@ -187,7 +167,7 @@ class SRSManager {
                 completedAt: Date.now()
             };
         }
-        this.addXP(50 * stars);
+        this.addXP(100);
         this.saveData();
     }
 
@@ -204,15 +184,12 @@ class SRSManager {
     }
 
     // ================= ☁️ 초고속 실시간 클라우드 자동 동기화 =================
-    
-    // 새 클라우드 키 발급 또는 기존 키 연결
     async connectCloudKey(keyInput) {
         let key = keyInput ? keyInput.trim() : '';
         this.updateSyncStatusUI('syncing');
 
         try {
             if (!key) {
-                // 키가 없으면 새 클라우드 슬롯 즉시 발급
                 const payload = {
                     name: "dokhak_voca_cloud_slot",
                     data: this.data
@@ -227,7 +204,6 @@ class SRSManager {
                     key = resData.id;
                 }
             } else {
-                // 기존 키가 있으면 데이터 확인
                 const res = await fetch(`https://api.restful-api.dev/objects/${key}`);
                 if (res.ok) {
                     const item = await res.json();
@@ -235,7 +211,6 @@ class SRSManager {
                         this.mergeCloudData(item.data);
                     }
                 } else {
-                    // 키가 없으면 새로 생성
                     const payload = { name: "dokhak_voca_cloud_slot", data: this.data };
                     const resNew = await fetch('https://api.restful-api.dev/objects', {
                         method: 'POST',
@@ -337,6 +312,9 @@ class SRSManager {
 
         if (!this.data.updatedAt || (cloudData.updatedAt && cloudData.updatedAt >= this.data.updatedAt) || cloudData.xp > this.data.xp) {
             this.data = Object.assign(this.getDefaultData(), cloudData);
+            if (Array.isArray(this.data.wrongNotes)) {
+                this.data.wrongNotes = this.data.wrongNotes.map(id => parseInt(id)).filter(id => !isNaN(id));
+            }
             localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.data));
             this.updateSyncStatusUI('synced');
             
@@ -366,7 +344,6 @@ class SRSManager {
         }
     }
 
-    // URL 파라미터에서 클라우드 키 자동 로드 (예: #cloud=xxxx)
     checkUrlCloudKey() {
         if (window.location.hash && window.location.hash.includes('#cloud=')) {
             const key = window.location.hash.split('#cloud=')[1].split('&')[0];
@@ -379,12 +356,10 @@ class SRSManager {
         }
     }
 
-    // URL 파라미터에서 동기화 코드 로드 (하위 호환)
     checkUrlSyncImport() {
         this.checkUrlCloudKey();
     }
 
-    // 스마트폰 원클릭 자동 연동 링크 생성
     getAutoSyncShareUrl() {
         const base = window.location.origin + window.location.pathname;
         if (!this.cloudKey) return base;
@@ -401,6 +376,9 @@ class SRSManager {
             const parsed = JSON.parse(jsonStr);
             if (parsed && typeof parsed === 'object') {
                 this.data = Object.assign(this.getDefaultData(), parsed);
+                if (Array.isArray(this.data.wrongNotes)) {
+                    this.data.wrongNotes = this.data.wrongNotes.map(id => parseInt(id)).filter(id => !isNaN(id));
+                }
                 this.saveData();
                 return true;
             }
