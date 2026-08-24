@@ -373,6 +373,7 @@ class VocaApp {
         this.quizSession = {
             title: title,
             rawCategory: rawCategory,
+            isWrongSession: (title.includes('오답') || title.includes('Wrong')),
             items: queue,
             currentIndex: 0,
             score: 0,
@@ -438,7 +439,10 @@ class VocaApp {
 
         const content = document.createElement('div');
         content.innerHTML = `
-            <div class="quiz-prompt-title">알맞은 한국어 뜻을 선택하세요</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <div class="quiz-prompt-title" style="margin-bottom:0;">알맞은 한국어 뜻을 선택하세요</div>
+                <button class="duo-btn duo-btn-outline" id="btn-dont-know" style="padding:5px 12px; font-size:12px; font-weight:800; border-radius:10px;">🤔 몰라요</button>
+            </div>
             <div class="quiz-word-hero">
                 <div class="hero-word">${targetWord.word}</div>
                 <button class="hero-speaker-btn" id="hero-tts-btn">🔊</button>
@@ -456,6 +460,10 @@ class VocaApp {
 
         document.getElementById('hero-tts-btn').onclick = () => window.soundEngine.speak(targetWord.word);
         setTimeout(() => window.soundEngine.speak(targetWord.word), 150);
+
+        document.getElementById('btn-dont-know').onclick = () => {
+            this.handleSingleAnswerResult(false, targetWord, 'ko_to_en');
+        };
 
         const cards = container.querySelectorAll('.choice-card');
         cards.forEach(card => {
@@ -482,7 +490,10 @@ class VocaApp {
 
         const content = document.createElement('div');
         content.innerHTML = `
-            <div class="quiz-prompt-title">알맞은 영단어를 선택하세요</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <div class="quiz-prompt-title" style="margin-bottom:0;">알맞은 영단어를 선택하세요</div>
+                <button class="duo-btn duo-btn-outline" id="btn-dont-know" style="padding:5px 12px; font-size:12px; font-weight:800; border-radius:10px;">🤔 몰라요</button>
+            </div>
             <div class="quiz-word-hero" style="background: linear-gradient(135deg, rgba(28,176,246,0.1), rgba(28,176,246,0.02));">
                 <div class="hero-word" style="font-size: 22px; color: var(--duo-blue);">${targetWord.meaning}</div>
             </div>
@@ -496,6 +507,11 @@ class VocaApp {
             </div>
         `;
         container.appendChild(content);
+
+        document.getElementById('btn-dont-know').onclick = () => {
+            window.soundEngine.speak(targetWord.word);
+            this.handleSingleAnswerResult(false, targetWord, 'en_to_ko');
+        };
 
         const cards = container.querySelectorAll('.choice-card');
         cards.forEach(card => {
@@ -525,7 +541,10 @@ class VocaApp {
 
         const content = document.createElement('div');
         content.innerHTML = `
-            <div class="quiz-prompt-title">이 단어의 뜻이 맞습니까? (1초 스피드 판별)</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <div class="quiz-prompt-title" style="margin-bottom:0;">이 단어의 뜻이 맞습니까? (1초 판별)</div>
+                <button class="duo-btn duo-btn-outline" id="btn-dont-know" style="padding:5px 12px; font-size:12px; font-weight:800; border-radius:10px;">🤔 몰라요</button>
+            </div>
             <div class="quiz-word-hero">
                 <div class="hero-word">${targetWord.word}</div>
                 <div style="font-size: 18px; color: var(--duo-blue); font-weight: 800; margin-top: 6px;">= ${displayedMeaning}</div>
@@ -540,6 +559,10 @@ class VocaApp {
 
         document.getElementById('hero-tts-btn').onclick = () => window.soundEngine.speak(targetWord.word);
         setTimeout(() => window.soundEngine.speak(targetWord.word), 150);
+
+        document.getElementById('btn-dont-know').onclick = () => {
+            this.handleSingleAnswerResult(false, targetWord, 'ko_to_en');
+        };
 
         document.getElementById('btn-ox-true').onclick = () => {
             const isRight = isTrueQuestion === true;
@@ -603,7 +626,7 @@ class VocaApp {
                         this.quizSession.score += pairs.length;
                         this.quizSession.combo += pairs.length;
 
-                        pairs.forEach(w => window.srsManager.recordRight(w.id));
+                        pairs.forEach(w => window.srsManager.recordRight(w.id, this.quizSession.isWrongSession));
 
                         setTimeout(() => {
                             this.quizSession.currentIndex++;
@@ -663,7 +686,7 @@ class VocaApp {
 
             window.soundEngine.playCorrect();
             if (session.combo >= 2) window.soundEngine.playCombo(session.combo);
-            window.srsManager.recordRight(targetWord.id);
+            window.srsManager.recordRight(targetWord.id, session.isWrongSession);
 
             footer.className = 'quiz-footer-banner banner-correct';
             footer.innerHTML = `
@@ -753,7 +776,7 @@ class VocaApp {
     renderReviewView() {
         const srs = window.srsManager;
         const dueWords = srs.getDueReviewWords(this.database.words);
-        const wrongWords = this.database.words.filter(w => srs.data.wrongNotes.includes(w.id));
+        const wrongWords = this.database.words.filter(w => srs.data.wrongNotes.includes(parseInt(w.id)));
 
         const dueEl = document.getElementById('review-due-count');
         const wrongEl = document.getElementById('review-wrong-count');
@@ -816,8 +839,9 @@ class VocaApp {
         if (badge) badge.textContent = `총 ${words.length}개`;
 
         listContainer.innerHTML = words.slice(0, 300).map(w => {
-            const isStarred = window.srsManager.data.wordStats[w.id]?.starred;
-            const isWrong = window.srsManager.data.wrongNotes.includes(w.id);
+            const numId = parseInt(w.id);
+            const isStarred = window.srsManager.data.wordStats[numId]?.starred;
+            const isWrong = window.srsManager.data.wrongNotes.includes(numId);
             return `
                 <div class="voca-item-card">
                     <div class="voca-item-left">
