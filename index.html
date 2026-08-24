@@ -1,208 +1,208 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#58cc02">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>독학사 4단계 영어 듀오링고 암기앱</title>
-    
-    <!-- 구글 폰트 -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;900&family=Outfit:wght@500;700;900&display=swap" rel="stylesheet">
-    
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <div id="app-container">
-        <!-- ==================== 상단 헤더 ==================== -->
-        <header class="top-header">
-            <div class="header-stat stat-streak" title="연속 학습 스트릭">
-                <span class="stat-icon">🔥</span>
-                <span id="header-streak-count">1</span>
-            </div>
-            <div class="header-stat stat-gem" title="학습 경험치(XP)">
-                <span class="stat-icon">💎</span>
-                <span id="header-gem-count">0</span>
-            </div>
-            <div class="header-stat stat-progress" title="전체 단어 마스터 진행률" style="background: rgba(88, 204, 2, 0.12); color: var(--duo-green-dark); border-color: var(--duo-green);">
-                <span class="stat-icon">📊</span>
-                <span id="header-mastery-percent" style="font-weight: 900;">0.0%</span>
-                <span id="header-mastery-count" style="font-size: 11px; opacity: 0.85; margin-left: 2px;">(0/2,238)</span>
-            </div>
-        </header>
-
-        <!-- ==================== 메인 콘텐츠 ==================== -->
-        <main class="main-content">
-            <!-- 1. 로드맵 뷰 (Path) -->
-            <section id="view-path" class="view-section active">
-                <div class="roadmap-header">
-                    <div class="roadmap-title">독학사 4단계 교양영어</div>
-                    <div class="roadmap-subtitle">VOCA 39일치 + Idioms 21일치 완벽 마스터!</div>
-                </div>
-
-                <div class="category-tabs">
-                    <div class="cat-tab active" data-type="VOCA">📖 필수 어휘 (39 Days)</div>
-                    <div class="cat-tab" data-type="Idioms">🧩 필수 숙어 (21 Days)</div>
-                </div>
-
-                <div id="path-nodes-container" class="path-container">
-                    <!-- JavaScript로 지그재그 스테이지 노드 렌더링 -->
-                </div>
-            </section>
-
-            <!-- 2. SRS 망각곡선 복습 뷰 (Review) -->
-            <section id="view-review" class="view-section">
-                <div class="roadmap-header" style="background: linear-gradient(135deg, var(--duo-blue), #148ac2); box-shadow: 0 6px 0 var(--duo-blue-dark);">
-                    <div class="roadmap-title">🧠 에빙하우스 간격 반복 (SRS)</div>
-                    <div class="roadmap-subtitle">망각 곡선 주기에 맞춘 오늘만의 맞춤 복습</div>
-                </div>
-
-                <div style="display: flex; flex-direction: column; gap: 16px; margin-top: 20px;">
-                    <div style="background: var(--bg-card); border: 2px solid var(--border-color); border-radius: var(--card-radius); padding: 20px; box-shadow: 0 4px 0 var(--border-color);">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                            <div style="font-size: 18px; font-weight: 900;">📅 오늘 복습할 단어</div>
-                            <div id="review-due-count" style="font-size: 20px; font-weight: 900; color: var(--duo-blue);">0개</div>
-                        </div>
-                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">암기 주기가 도래한 단어를 복습하여 장기 기억으로 전환합니다.</p>
-                        <button class="duo-btn duo-btn-blue" id="btn-start-due-review">오늘 복습 시작하기</button>
-                    </div>
-
-                    <div style="background: var(--bg-card); border: 2px solid var(--border-color); border-radius: var(--card-radius); padding: 20px; box-shadow: 0 4px 0 var(--border-color);">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                            <div style="font-size: 18px; font-weight: 900;">🚨 오답노트 집중 훈련</div>
-                            <div id="review-wrong-count" style="font-size: 20px; font-weight: 900; color: var(--duo-red);">0개</div>
-                        </div>
-                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">틀렸던 취약 단어들만 모아서 집중적으로 훈련합니다. (맞히면 목록에서 자동 삭제)</p>
-                        <button class="duo-btn duo-btn-yellow" id="btn-start-wrong-review" style="margin-bottom: 14px;">오답 집중 훈련 시작</button>
-                        
-                        <div style="font-size: 13px; font-weight: 800; color: var(--text-muted); margin-bottom: 8px;">현재 틀린 단어 목록</div>
-                        <div id="wrong-words-preview-list" style="max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;">
-                            <!-- 틀린 단어 목록 렌더링 -->
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 3. 아케이드 / 스피드 챌린지 뷰 (Arcade) -->
-            <section id="view-arcade" class="view-section">
-                <div class="roadmap-header" style="background: linear-gradient(135deg, var(--duo-purple), #9333ea); box-shadow: 0 6px 0 var(--duo-purple-dark);">
-                    <div class="roadmap-title">⚡ 스피드 아케이드 모드</div>
-                    <div class="roadmap-subtitle">1,990개 전체 단어로 실전 감각을 끌어올리세요!</div>
-                </div>
-
-                <div style="display: flex; flex-direction: column; gap: 16px; margin-top: 20px;">
-                    <div style="background: var(--bg-card); border: 2px solid var(--border-color); border-radius: var(--card-radius); padding: 20px; box-shadow: 0 4px 0 var(--border-color);">
-                        <div style="font-size: 18px; font-weight: 900; margin-bottom: 8px;">🔥 무한 랜덤 스피드 퀴즈</div>
-                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">2,000여 개 단어 중 무작위 15문제를 빠르게 풀어봅니다.</p>
-                        <button class="duo-btn duo-btn-green" onclick="window.vocaApp.openQuizOverlay(window.VOCA_DATABASE.words, '무한 스피드 챌린지')">스피드 퀴즈 시작</button>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 4. 단어장 검색 & 리스트 뷰 (Voca) -->
-            <!-- 4. 단어장 검색 & 리스트 뷰 (Voca) -->
-            <section id="view-voca" class="view-section">
-                <div class="search-box-wrapper">
-                    <input type="text" id="voca-search-input" class="search-input" placeholder="🔍 영단어 또는 한국어 뜻 검색...">
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; margin-bottom: 8px;">
-                    <div style="font-size: 14px; font-weight: 800; color: var(--text-muted);">전체 단어 목록</div>
-                    <div id="voca-total-badge" style="font-size: 13px; font-weight: 800; color: var(--duo-blue);">총 2,238개</div>
-                </div>
-                <div id="voca-items-list" class="voca-card-list">
-                    <!-- 단어 리스트 -->
-                </div>
-            </section>
-
-            <!-- 5. 설정 & 백업 뷰 (Settings) -->
-            <section id="view-settings" class="view-section">
-                <div class="roadmap-header" style="background: linear-gradient(135deg, #475569, #334155); box-shadow: 0 6px 0 #1e293b;">
-                    <div class="roadmap-title">⚙️ 설정 및 클라우드 동기화</div>
-                    <div class="roadmap-subtitle">스마트폰과 PC 간에 진도가 실시간으로 자동 동기화됩니다!</div>
-                </div>
-
-                <div style="display: flex; flex-direction: column; gap: 16px; margin-top: 20px;">
-                    <!-- 1. 실시간 클라우드 자동 동기화 카드 -->
-                    <div style="background: var(--bg-card); border: 2px solid var(--duo-blue); border-radius: var(--card-radius); padding: 20px; box-shadow: 0 4px 0 var(--duo-blue-dark);">
-                        <div style="font-size: 18px; font-weight: 900; margin-bottom: 6px; color: var(--duo-blue);">☁️ 100% 실시간 자동 클라우드 동기화</div>
-                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">한 번만 연결해 두면, 단어를 풀 때마다 진도가 100% 실시간으로 자동 동기화됩니다.</p>
-                        
-                        <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
-                            <div style="display: flex; gap: 8px;">
-                                <input type="text" id="input-sync-id" class="search-input" placeholder="클라우드 동기화 키" style="flex: 1; padding: 10px 14px; font-size: 13px;">
-                                <button class="duo-btn duo-btn-blue" id="btn-save-sync-id" style="width: auto; padding: 0 16px; font-size: 13px;">동기화 연결</button>
-                            </div>
-                            <button class="duo-btn duo-btn-green" id="btn-share-cloud-link" style="width: 100%; font-size: 14px;">🔗 스마트폰 원클릭 자동 연동 링크 복사</button>
-                        </div>
-                        <div id="cloud-sync-status-badge" style="font-size: 13px; font-weight: 800; color: var(--text-muted);">⚪ 동기화 연결 버튼을 누르세요</div>
-                    </div>
-
-                    <!-- 2. 수동 코드 복사 백업 카드 -->
-                    <div style="background: var(--bg-card); border: 2px solid var(--border-color); border-radius: var(--card-radius); padding: 20px; box-shadow: 0 4px 0 var(--border-color);">
-                        <div style="font-size: 18px; font-weight: 900; margin-bottom: 6px;">📋 수동 진도 백업 코드</div>
-                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">오프라인 환경 등에서 텍스트 코드로 진도를 직접 옮길 때 사용합니다.</p>
-                        <div style="display: flex; gap: 10px;">
-                            <button class="duo-btn duo-btn-outline" id="btn-export-backup" style="flex:1;">📋 코드 복사</button>
-                            <button class="duo-btn duo-btn-outline" id="btn-import-backup" style="flex:1;">📥 코드 불러오기</button>
-                        </div>
-                    </div>
-
-                    <div style="background: var(--bg-card); border: 2px solid var(--border-color); border-radius: var(--card-radius); padding: 20px; box-shadow: 0 4px 0 var(--border-color);">
-                        <div style="font-size: 18px; font-weight: 900; margin-bottom: 8px;">🌙 테마 설정</div>
-                        <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 14px;">
-                            <button class="duo-btn duo-btn-outline" id="btn-theme-toggle">🌙 다크 모드</button>
-                        </div>
-                    </div>
-                </div>
-            </section>
-        </main>
-
-        <!-- ==================== 하단 네비게이션 바 ==================== -->
-        <nav class="bottom-nav">
-            <div class="nav-item active" data-target="view-path">
-                <div class="nav-icon">🗺️</div>
-                <div>로드맵</div>
-            </div>
-            <div class="nav-item" data-target="view-review">
-                <div class="nav-icon">🧠</div>
-                <div>망각복습</div>
-            </div>
-            <div class="nav-item" data-target="view-voca">
-                <div class="nav-icon">📖</div>
-                <div>단어장</div>
-            </div>
-            <div class="nav-item" data-target="view-settings">
-                <div class="nav-icon">⚙️</div>
-                <div>설정</div>
-            </div>
-        </nav>
-
-        <!-- ==================== 퀴즈 오버레이 모달 ==================== -->
-        <div id="quiz-modal" class="quiz-overlay">
-            <div class="quiz-top-bar">
-                <button class="quiz-close-btn" onclick="window.vocaApp.closeQuiz()">✕</button>
-                <div class="quiz-progress-track">
-                    <div id="quiz-progress-bar" class="quiz-progress-fill"></div>
-                </div>
-            </div>
-
-            <div id="quiz-body-container" class="quiz-body">
-                <!-- 동적 퀴즈 렌더링 -->
-            </div>
-
-            <div id="quiz-footer" class="quiz-footer-banner">
-                <!-- 동적 피드백 배너 -->
-            </div>
-        </div>
-    </div>
-
-    <!-- 스크립트 연결 -->
-    <script src="voca_data.js"></script>
-    <script src="audio.js"></script>
-    <script src="srs.js"></script>
-    <script src="app.js"></script>
-</body>
-</html>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#58cc02">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>독학사 4단계 영어 듀오링고 암기앱</title>
+    
+    <!-- 구글 폰트 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;900&family=Outfit:wght@500;700;900&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app-container">
+        <!-- ==================== 상단 헤더 ==================== -->
+        <header class="top-header">
+            <div class="header-stat stat-streak" title="연속 학습 스트릭">
+                <span class="stat-icon">🔥</span>
+                <span id="header-streak-count">1</span>
+            </div>
+            <div class="header-stat stat-gem" title="학습 경험치(XP)">
+                <span class="stat-icon">💎</span>
+                <span id="header-gem-count">0</span>
+            </div>
+            <div class="header-stat stat-progress" title="전체 단어 마스터 진행률" style="background: rgba(88, 204, 2, 0.12); color: var(--duo-green-dark); border-color: var(--duo-green);">
+                <span class="stat-icon">📊</span>
+                <span id="header-mastery-percent" style="font-weight: 900;">0.0%</span>
+                <span id="header-mastery-count" style="font-size: 11px; opacity: 0.85; margin-left: 2px;">(0/2,238)</span>
+            </div>
+        </header>
+
+        <!-- ==================== 메인 콘텐츠 ==================== -->
+        <main class="main-content">
+            <!-- 1. 로드맵 뷰 (Path) -->
+            <section id="view-path" class="view-section active">
+                <div class="roadmap-header">
+                    <div class="roadmap-title">독학사 4단계 교양영어</div>
+                    <div class="roadmap-subtitle">VOCA 39일치 + Idioms 21일치 완벽 마스터!</div>
+                </div>
+
+                <div class="category-tabs">
+                    <div class="cat-tab active" data-type="VOCA">📖 필수 어휘 (39 Days)</div>
+                    <div class="cat-tab" data-type="Idioms">🧩 필수 숙어 (21 Days)</div>
+                </div>
+
+                <div id="path-nodes-container" class="path-container">
+                    <!-- JavaScript로 지그재그 스테이지 노드 렌더링 -->
+                </div>
+            </section>
+
+            <!-- 2. SRS 망각곡선 복습 뷰 (Review) -->
+            <section id="view-review" class="view-section">
+                <div class="roadmap-header" style="background: linear-gradient(135deg, var(--duo-blue), #148ac2); box-shadow: 0 6px 0 var(--duo-blue-dark);">
+                    <div class="roadmap-title">🧠 에빙하우스 간격 반복 (SRS)</div>
+                    <div class="roadmap-subtitle">망각 곡선 주기에 맞춘 오늘만의 맞춤 복습</div>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 16px; margin-top: 20px;">
+                    <div style="background: var(--bg-card); border: 2px solid var(--border-color); border-radius: var(--card-radius); padding: 20px; box-shadow: 0 4px 0 var(--border-color);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <div style="font-size: 18px; font-weight: 900;">📅 오늘 복습할 단어</div>
+                            <div id="review-due-count" style="font-size: 20px; font-weight: 900; color: var(--duo-blue);">0개</div>
+                        </div>
+                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">암기 주기가 도래한 단어를 복습하여 장기 기억으로 전환합니다.</p>
+                        <button class="duo-btn duo-btn-blue" id="btn-start-due-review">오늘 복습 시작하기</button>
+                    </div>
+
+                    <div style="background: var(--bg-card); border: 2px solid var(--border-color); border-radius: var(--card-radius); padding: 20px; box-shadow: 0 4px 0 var(--border-color);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <div style="font-size: 18px; font-weight: 900;">🚨 오답노트 집중 훈련</div>
+                            <div id="review-wrong-count" style="font-size: 20px; font-weight: 900; color: var(--duo-red);">0개</div>
+                        </div>
+                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">틀렸던 취약 단어들만 모아서 집중적으로 훈련합니다. (맞히면 목록에서 자동 삭제)</p>
+                        <button class="duo-btn duo-btn-yellow" id="btn-start-wrong-review" style="margin-bottom: 14px;">오답 집중 훈련 시작</button>
+                        
+                        <div style="font-size: 13px; font-weight: 800; color: var(--text-muted); margin-bottom: 8px;">현재 틀린 단어 목록</div>
+                        <div id="wrong-words-preview-list" style="max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;">
+                            <!-- 틀린 단어 목록 렌더링 -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. 아케이드 / 스피드 챌린지 뷰 (Arcade) -->
+            <section id="view-arcade" class="view-section">
+                <div class="roadmap-header" style="background: linear-gradient(135deg, var(--duo-purple), #9333ea); box-shadow: 0 6px 0 var(--duo-purple-dark);">
+                    <div class="roadmap-title">⚡ 스피드 아케이드 모드</div>
+                    <div class="roadmap-subtitle">1,990개 전체 단어로 실전 감각을 끌어올리세요!</div>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 16px; margin-top: 20px;">
+                    <div style="background: var(--bg-card); border: 2px solid var(--border-color); border-radius: var(--card-radius); padding: 20px; box-shadow: 0 4px 0 var(--border-color);">
+                        <div style="font-size: 18px; font-weight: 900; margin-bottom: 8px;">🔥 무한 랜덤 스피드 퀴즈</div>
+                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">2,000여 개 단어 중 무작위 15문제를 빠르게 풀어봅니다.</p>
+                        <button class="duo-btn duo-btn-green" onclick="window.vocaApp.openQuizOverlay(window.VOCA_DATABASE.words, '무한 스피드 챌린지')">스피드 퀴즈 시작</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 4. 단어장 검색 & 리스트 뷰 (Voca) -->
+            <!-- 4. 단어장 검색 & 리스트 뷰 (Voca) -->
+            <section id="view-voca" class="view-section">
+                <div class="search-box-wrapper">
+                    <input type="text" id="voca-search-input" class="search-input" placeholder="🔍 영단어 또는 한국어 뜻 검색...">
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; margin-bottom: 8px;">
+                    <div style="font-size: 14px; font-weight: 800; color: var(--text-muted);">전체 단어 목록</div>
+                    <div id="voca-total-badge" style="font-size: 13px; font-weight: 800; color: var(--duo-blue);">총 2,238개</div>
+                </div>
+                <div id="voca-items-list" class="voca-card-list">
+                    <!-- 단어 리스트 -->
+                </div>
+            </section>
+
+            <!-- 5. 설정 & 백업 뷰 (Settings) -->
+            <section id="view-settings" class="view-section">
+                <div class="roadmap-header" style="background: linear-gradient(135deg, #475569, #334155); box-shadow: 0 6px 0 #1e293b;">
+                    <div class="roadmap-title">⚙️ 설정 및 클라우드 동기화</div>
+                    <div class="roadmap-subtitle">스마트폰과 PC 간에 진도가 실시간으로 자동 동기화됩니다!</div>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 16px; margin-top: 20px;">
+                    <!-- 1. 실시간 클라우드 자동 동기화 카드 -->
+                    <div style="background: var(--bg-card); border: 2px solid var(--duo-blue); border-radius: var(--card-radius); padding: 20px; box-shadow: 0 4px 0 var(--duo-blue-dark);">
+                        <div style="font-size: 18px; font-weight: 900; margin-bottom: 6px; color: var(--duo-blue);">☁️ 100% 실시간 자동 클라우드 동기화</div>
+                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">한 번만 연결해 두면, 단어를 풀 때마다 진도가 100% 실시간으로 자동 동기화됩니다.</p>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
+                            <div style="display: flex; gap: 8px;">
+                                <input type="text" id="input-sync-id" class="search-input" placeholder="클라우드 동기화 키" style="flex: 1; padding: 10px 14px; font-size: 13px;">
+                                <button class="duo-btn duo-btn-blue" id="btn-save-sync-id" style="width: auto; padding: 0 16px; font-size: 13px;">동기화 연결</button>
+                            </div>
+                            <button class="duo-btn duo-btn-green" id="btn-share-cloud-link" style="width: 100%; font-size: 14px;">🔗 스마트폰 원클릭 자동 연동 링크 복사</button>
+                        </div>
+                        <div id="cloud-sync-status-badge" style="font-size: 13px; font-weight: 800; color: var(--text-muted);">⚪ 동기화 연결 버튼을 누르세요</div>
+                    </div>
+
+                    <!-- 2. 수동 코드 복사 백업 카드 -->
+                    <div style="background: var(--bg-card); border: 2px solid var(--border-color); border-radius: var(--card-radius); padding: 20px; box-shadow: 0 4px 0 var(--border-color);">
+                        <div style="font-size: 18px; font-weight: 900; margin-bottom: 6px;">📋 수동 진도 백업 코드</div>
+                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">오프라인 환경 등에서 텍스트 코드로 진도를 직접 옮길 때 사용합니다.</p>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="duo-btn duo-btn-outline" id="btn-export-backup" style="flex:1;">📋 코드 복사</button>
+                            <button class="duo-btn duo-btn-outline" id="btn-import-backup" style="flex:1;">📥 코드 불러오기</button>
+                        </div>
+                    </div>
+
+                    <div style="background: var(--bg-card); border: 2px solid var(--border-color); border-radius: var(--card-radius); padding: 20px; box-shadow: 0 4px 0 var(--border-color);">
+                        <div style="font-size: 18px; font-weight: 900; margin-bottom: 8px;">🌙 테마 설정</div>
+                        <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 14px;">
+                            <button class="duo-btn duo-btn-outline" id="btn-theme-toggle">🌙 다크 모드</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- ==================== 하단 네비게이션 바 ==================== -->
+        <nav class="bottom-nav">
+            <div class="nav-item active" data-target="view-path">
+                <div class="nav-icon">🗺️</div>
+                <div>로드맵</div>
+            </div>
+            <div class="nav-item" data-target="view-review">
+                <div class="nav-icon">🧠</div>
+                <div>망각복습</div>
+            </div>
+            <div class="nav-item" data-target="view-voca">
+                <div class="nav-icon">📖</div>
+                <div>단어장</div>
+            </div>
+            <div class="nav-item" data-target="view-settings">
+                <div class="nav-icon">⚙️</div>
+                <div>설정</div>
+            </div>
+        </nav>
+
+        <!-- ==================== 퀴즈 오버레이 모달 ==================== -->
+        <div id="quiz-modal" class="quiz-overlay">
+            <div class="quiz-top-bar">
+                <button class="quiz-close-btn" onclick="window.vocaApp.closeQuiz()">✕</button>
+                <div class="quiz-progress-track">
+                    <div id="quiz-progress-bar" class="quiz-progress-fill"></div>
+                </div>
+            </div>
+
+            <div id="quiz-body-container" class="quiz-body">
+                <!-- 동적 퀴즈 렌더링 -->
+            </div>
+
+            <div id="quiz-footer" class="quiz-footer-banner">
+                <!-- 동적 피드백 배너 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 스크립트 연결 -->
+    <script src="voca_data.js"></script>
+    <script src="audio.js"></script>
+    <script src="srs.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
