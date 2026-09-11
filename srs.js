@@ -1,4 +1,4 @@
-// 에빙하우스 망각곡선 기반 간격 반복 시스템 (SRS) & 완벽한 오답노트 영구 보존 엔진
+// 에빙하우스 망각곡선 기반 간격 반복 시스템 (SRS) & 2가지 오답노트(미해결 / 누적보관) 엔진
 class SRSManager {
     constructor() {
         this.STORAGE_KEY = 'DOKHAK_VOCA_USER_DATA_V1';
@@ -30,7 +30,8 @@ class SRSManager {
             lastStudyDate: new Date().toISOString().split('T')[0],
             completedDays: {}, // { "VOCA 01": { stars: 3, score: 100, completedAt: ... } }
             wordStats: {},     // { "word_id": { level: 0~5, nextReview: timestamp, wrongCount: 0, rightCount: 0, starred: false } }
-            wrongNotes: [],    // [ 1, 5, 12 ... ] 틀린 단어 ID 정수 배열
+            wrongNotes: [],    // [ 1, 5, 12 ... ] 현재 미해결 오답노트 (맞추면 삭제됨)
+            allTimeWrongNotes: [], // [ 1, 5, 12 ... ] 누적 오답 보관소 (틀린 적 있는 모든 단어 - 영구 보관)
             updatedAt: Date.now()
         };
     }
@@ -41,10 +42,26 @@ class SRSManager {
             if (raw) {
                 const parsed = JSON.parse(raw);
                 const merged = Object.assign(this.getDefaultData(), parsed);
+                
                 // wrongNotes 배열 정수 정규화
                 if (Array.isArray(merged.wrongNotes)) {
                     merged.wrongNotes = merged.wrongNotes.map(id => parseInt(id)).filter(id => !isNaN(id));
+                } else {
+                    merged.wrongNotes = [];
                 }
+
+                // allTimeWrongNotes 정규화 및 마이그레이션 (기존 사용자의 wrongNotes도 누적 보관소에 자동 포함)
+                if (Array.isArray(merged.allTimeWrongNotes)) {
+                    merged.allTimeWrongNotes = merged.allTimeWrongNotes.map(id => parseInt(id)).filter(id => !isNaN(id));
+                } else {
+                    merged.allTimeWrongNotes = [...merged.wrongNotes];
+                }
+                merged.wrongNotes.forEach(id => {
+                    if (!merged.allTimeWrongNotes.includes(id)) {
+                        merged.allTimeWrongNotes.push(id);
+                    }
+                });
+
                 return merged;
             }
         } catch (e) {
@@ -91,8 +108,8 @@ class SRSManager {
         return intervals[Math.min(level, intervals.length - 1)];
     }
 
-    // 단어 정답 처리 (isFromWrongSession: 오답노트 집중 훈련에서 맞혔을 때만 오답노트에서 삭제!)
-    recordRight(wordId, isFromWrongSession = false) {
+    // 단어 정답 처리 (isFromActiveWrongSession: '미해결 오답 훈련'에서 맞혔을 때만 wrongNotes에서 삭제!)
+    recordRight(wordId, isFromActiveWrongSession = false) {
         const numId = parseInt(wordId);
         if (isNaN(numId)) return;
 
@@ -106,19 +123,20 @@ class SRSManager {
         const days = this.getIntervalDays(stat.level);
         stat.nextReview = Date.now() + (days * 24 * 60 * 60 * 1000);
 
-        // 🌟 오답노트 집중 훈련에서 맞혔을 때만 오답노트에서 제거!
-        if (isFromWrongSession) {
+        // 🌟 '미해결 오답 훈련'에서 맞혔을 때만 현재 오답 목록에서 제거!
+        if (isFromActiveWrongSession) {
             const idx = this.data.wrongNotes.indexOf(numId);
             if (idx !== -1) {
                 this.data.wrongNotes.splice(idx, 1);
             }
         }
+        // ⚠️ allTimeWrongNotes(누적 오답)는 절대로 삭제되지 않습니다!
 
         this.addXP(10);
         this.saveData();
     }
 
-    // 단어 오답 처리 (오답노트에 영구 등록)
+    // 단어 오답 처리 (현재 오답노트 & 누적 오답 보관소에 동시 등록)
     recordWrong(wordId) {
         const numId = parseInt(wordId);
         if (isNaN(numId)) return;
@@ -131,9 +149,17 @@ class SRSManager {
         stat.level = Math.max(0, stat.level - 1);
         stat.nextReview = Date.now() + (12 * 60 * 60 * 1000);
 
-        // 오답노트에 중복 없이 추가
+        // 1. 현재 미해결 오답노트에 추가
         if (!this.data.wrongNotes.includes(numId)) {
             this.data.wrongNotes.push(numId);
+        }
+
+        // 2. 누적 오답 보관소에 영구 추가 (중복 방지)
+        if (!Array.isArray(this.data.allTimeWrongNotes)) {
+            this.data.allTimeWrongNotes = [];
+        }
+        if (!this.data.allTimeWrongNotes.includes(numId)) {
+            this.data.allTimeWrongNotes.push(numId);
         }
 
         this.saveData();
@@ -154,7 +180,7 @@ class SRSManager {
     recordStageComplete(category, score, total) {
         if (!category) return;
         const ratio = total > 0 ? (score / total) : 1;
-        let stars = 3; // 완벽 마스터 시 3성 부여
+        let stars = 3;
         if (ratio < 0.7) stars = 2;
         if (ratio < 0.5) stars = 1;
 
@@ -312,9 +338,24 @@ class SRSManager {
 
         if (!this.data.updatedAt || (cloudData.updatedAt && cloudData.updatedAt >= this.data.updatedAt) || cloudData.xp > this.data.xp) {
             this.data = Object.assign(this.getDefaultData(), cloudData);
+            
             if (Array.isArray(this.data.wrongNotes)) {
                 this.data.wrongNotes = this.data.wrongNotes.map(id => parseInt(id)).filter(id => !isNaN(id));
+            } else {
+                this.data.wrongNotes = [];
             }
+
+            if (Array.isArray(this.data.allTimeWrongNotes)) {
+                this.data.allTimeWrongNotes = this.data.allTimeWrongNotes.map(id => parseInt(id)).filter(id => !isNaN(id));
+            } else {
+                this.data.allTimeWrongNotes = [...this.data.wrongNotes];
+            }
+            this.data.wrongNotes.forEach(id => {
+                if (!this.data.allTimeWrongNotes.includes(id)) {
+                    this.data.allTimeWrongNotes.push(id);
+                }
+            });
+
             localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.data));
             this.updateSyncStatusUI('synced');
             
@@ -378,6 +419,11 @@ class SRSManager {
                 this.data = Object.assign(this.getDefaultData(), parsed);
                 if (Array.isArray(this.data.wrongNotes)) {
                     this.data.wrongNotes = this.data.wrongNotes.map(id => parseInt(id)).filter(id => !isNaN(id));
+                }
+                if (Array.isArray(this.data.allTimeWrongNotes)) {
+                    this.data.allTimeWrongNotes = this.data.allTimeWrongNotes.map(id => parseInt(id)).filter(id => !isNaN(id));
+                } else {
+                    this.data.allTimeWrongNotes = [...(this.data.wrongNotes || [])];
                 }
                 this.saveData();
                 return true;
